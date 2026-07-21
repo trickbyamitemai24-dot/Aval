@@ -1,0 +1,48 @@
+bot:
+  token: ${BOT_TOKEN}
+  owner_id: 8362234130
+  owner_username: "@rayzenqx"
+  admin_ids:
+    - 8537819533
+    - 8940277186
+    - 8604698785
+  name: "Aurora Checker"
+  creator: "PRO Noob"
+  creator_username: "@rayzenqx"
+
+tiers:
+  FREE:  {workers: 10,  card_limit: 500,   speed: "Low"}
+  BASIC: {workers: 20,  card_limit: 1000,  speed: "Decent"}
+  PRO:   {workers: 30,  card_limit: 5000,  speed: "Medium"}
+  MAX:   {workers: 50,  card_limit: 10000, speed: "Fast"}
+  ULTRA: {workers: 200, card_limit: 50000, speed: "Ultra Fast"}
+
+pricing:
+  BASIC: {7: 2, 15: 5, 30: 7}
+  PRO:   {7: 5, 15: 7, 30: 10}
+  MAX:   {7: 5, 15: 10, 30: 15}
+  ULTRA: {7: 12, 15: 30, 30: 50}
+
+checker:
+  timeout: 15
+  retries: 1
+  progress_update_interval: 3
+
+proxy:
+  check_timeout: 10
+  max_per_user: 100
+  validation_url: "https://httpbin.org/ip"
+  default_file: "proxy.txt"
+
+bin_lookup:
+  api_url: ""
+  cache_ttl_hours: 720
+
+database:
+  path: "data/aurora.db"
+
+logging:
+  level: "INFO"
+  file: "logs/aurora.log"
+
+sites_dir: "sites"
