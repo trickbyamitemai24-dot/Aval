@@ -54,13 +54,10 @@ def parse_card(raw: str) -> Optional[Card]:
 
             # Validate month: 2 digits, 01-12
             if not month.isdigit():
-                # Handle single digit month: pad to 2
-                if month.isdigit() and 1 <= int(month) <= 12:
-                    month = month.zfill(2)
-                else:
-                    continue
-            elif not (1 <= int(month) <= 12):
                 continue
+            if not (1 <= int(month) <= 12):
+                continue
+            month = month.zfill(2)
 
             # Validate year: 2 or 4 digits
             if not year.isdigit():

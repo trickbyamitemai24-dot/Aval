@@ -17,7 +17,7 @@ from typing import Callable, Awaitable
 from core.card_parser import Card
 from core.checker import shopify_check, CheckResult
 from core.loader import pick_store
-from core.store_health import StoreHealthCache
+from core.store_health import StoreHealthCache, _record_check_internal
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +122,12 @@ async def mass_check(
     result = MassCheckResult(total=total)
     semaphore = asyncio.Semaphore(workers)
     used_stores: set[str] = set()
+    max_used_cache = 500
     start_time = time.time()
     last_progress = 0.0
     last_state_save = 0.0
+    health_batch = []
+    lock = asyncio.Lock()
 
     # Sort stores by health score if cache available
     if health_cache:
@@ -134,12 +137,15 @@ async def mass_check(
         nonlocal last_progress, last_state_save
         async with semaphore:
             store = pick_store(stores, used_stores)
+            if len(used_stores) > max_used_cache:
+                used_stores.clear()
             if not store:
-                result.dead.append((card, CheckResult(
-                    status="DEAD", message="no_stores_available",
-                    gateway="Shopify Payments", price=0.0, store="", card=card,
-                )))
-                result.checked += 1
+                async with lock:
+                    result.dead.append((card, CheckResult(
+                        status="DEAD", message="no_stores_available",
+                        gateway="Shopify Payments", price=0.0, store="", card=card,
+                    )))
+                    result.checked += 1
                 return
 
             proxy = None
@@ -151,19 +157,27 @@ async def mass_check(
 
             check_result = await shopify_check(card, store, proxy=proxy, timeout=timeout)
 
-            # Update store health
+            # Update store health (memory + DB batched)
             if health_cache:
                 success = check_result.status in ("CHARGED", "LIVE", "LIVE_3DS")
                 health_cache.update_score(store, success)
+                if state_conn or (health_cache and health_cache.conn):
+                    db_conn = state_conn or health_cache.conn
+                    try:
+                        _record_check_internal(db_conn, store, success, 0)
+                    except Exception:
+                        pass
 
-            if check_result.status == "CHARGED":
-                result.charged.append((card, check_result))
-            elif check_result.status.startswith("LIVE"):
-                result.live.append((card, check_result))
-            else:
-                result.dead.append((card, check_result))
+            async with lock:
+                if check_result.status == "CHARGED":
+                    result.charged.append((card, check_result))
+                elif check_result.status.startswith("LIVE"):
+                    result.live.append((card, check_result))
+                else:
+                    result.dead.append((card, check_result))
 
-            result.checked += 1
+                result.checked += 1
+                checked = result.checked
 
             # Progress callback
             now = time.time()
@@ -171,14 +185,18 @@ async def mass_check(
                 last_progress = now
                 elapsed = now - start_time
                 try:
-                    await progress_callback(result.checked, total, result, elapsed)
+                    await progress_callback(checked, total, result, elapsed)
                 except Exception as e:
                     logger.warning("Progress callback error: %s", e)
 
-            # Save state every 10 cards
+            # Save state + batch commit health every 5 seconds
             if state_conn and state_id and (now - last_state_save) >= 5.0:
                 last_state_save = now
-                update_state(state_conn, state_id, result.checked)
+                update_state(state_conn, state_id, checked)
+                try:
+                    state_conn.commit()
+                except Exception:
+                    pass
 
     tasks = [asyncio.create_task(check_one(c)) for c in cards]
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -204,7 +222,10 @@ async def mass_check(
 
 
 def format_duration(seconds: float) -> str:
-    """Format seconds as 'Xm Ys'."""
-    m = int(seconds // 60)
+    """Format seconds as 'Xh Ym Zs'."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
     s = int(seconds % 60)
+    if h > 0:
+        return f"{h}h {m}m {s}s"
     return f"{m}m {s}s"

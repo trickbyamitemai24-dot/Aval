@@ -174,6 +174,22 @@ def increment_check_stats(conn: sqlite3.Connection, user_id: int,
     conn.commit()
 
 
+def batch_increment_stats(conn: sqlite3.Connection, user_id: int,
+                          charged: int = 0, live: int = 0, dead: int = 0):
+    """Batch increment all stats in one query."""
+    total = charged + live + dead
+    conn.execute(
+        """UPDATE users SET
+           total_charged = total_charged + ?,
+           total_live = total_live + ?,
+           total_dead = total_dead + ?,
+           total_checks = total_checks + ?
+           WHERE user_id = ?""",
+        (charged, live, dead, total, user_id),
+    )
+    conn.commit()
+
+
 def log_check_history(conn: sqlite3.Connection, user_id: int, check_type: str,
                       cards_total: int, live: int = 0, dead: int = 0,
                       charged: int = 0, price_range: str = None,
@@ -197,4 +213,17 @@ def log_charged_card(conn: sqlite3.Connection, user_id: int, card_number: str,
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (user_id, card_number, card_masked, gateway, response, price, store_url, bin_code),
     )
+    conn.commit()
+
+
+def batch_log_charged_cards(conn: sqlite3.Connection, user_id: int, cards: list):
+    """Batch log multiple charged cards. cards = [(card, result), ...]"""
+    for card, res in cards:
+        conn.execute(
+            """INSERT INTO charged_cards
+               (user_id, card_number, card_masked, gateway, response, price, store_url, bin)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, card.number, card.masked, res.gateway, res.message,
+             res.price, res.store, card.bin),
+        )
     conn.commit()

@@ -1,0 +1,182 @@
+# AURORA CHECKER — IMPORTANT CONTEXT
+
+## BOT IDENTITY
+- Name: Aurora Checker
+- Owner: PRO Noob (@rayzenqx) — ID: 8362234130
+- Admin 1: 8537819533
+- Admin 2: 8940277186
+- Admin 3: 8604698785
+- Owner number (hidden): 8801345757692
+
+## GITHUB REPO
+- URL: https://github.com/trickbyamitemai24-dot/Aval
+- Branch: main
+
+## HOSTING
+- Platform: Railway Pro
+- Start command: python3 -u bot.py
+- Health check: /health on PORT 8080
+- Volume: /app/data (SQLite persistence)
+
+## ENVIRONMENT VARIABLES
+```
+BOT_TOKEN=your_telegram_bot_token
+OWNER_ID=8362234130
+ADMIN_IDS=8537819533,8940277186,8604698785
+DATABASE_PATH=data/aurora.db
+LOG_FILE=logs/aurora.log
+LOG_LEVEL=INFO
+PORT=8080
+```
+
+## TIER SYSTEM
+| Tier | Workers | Card Limit/Run | Speed | 7d | 15d | 30d |
+|------|---------|---------------|-------|-----|------|------|
+| FREE | 10 | 500 | Low | Free | Free | Free |
+| BASIC | 20 | 1,000 | Decent | $2 | $5 | $7 |
+| PRO | 30 | 5,000 | Medium | $5 | $7 | $10 |
+| MAX | 50 | 10,000 | Fast | $5 | $10 | $15 |
+| ULTRA | 200 | 50,000 | Ultra Fast | $12 | $30 | $50 |
+
+## KEY SYSTEM (Evelyn-style)
+- Format: AURORA-XXXX-XXXX-XXXX-XXXX
+- Batch gen: /genkey <plan> <quantity> <duration_days>
+- Example: /genkey Pro 50 1
+- Redeem: /redeem <KEY> or reply to key message with /redeem
+- Cooldown: 3 hours between redemptions
+- Keys in <code> block with COPY button
+
+## STORE FILES (sites/)
+| File | Count | Button |
+|------|-------|--------|
+| 5$.txt | 282 | $1-5 |
+| 10$.txt | 336 | $1-10 |
+| 20$.txt | 1,463 | — |
+| 30$.txt | 1,632 | — |
+| 40$.txt | 949 | — |
+| 50$site.txt | 642 | — |
+| working.txt | 7,276 | All Sites |
+| hq.txt | 81 | HQ |
+| v40.txt | 2,012 | V40 |
+| **Total** | **9,987** | — |
+
+## TELEGRAM COMMANDS (28 total)
+### User Commands
+- /start — Welcome message
+- /help — Command list
+- /status — User tier + expiry
+- /sh <cc> — Single Shopify check
+- /st <cc> — Single Stripe $1 check
+- /bin <bin> — BIN lookup
+- /chk — Mass check (reply with .txt)
+- /resume — Resume interrupted mass check
+- /redeem <key> — Redeem key
+- /plans — View pricing
+- /addproxy — Add proxies (text/file)
+- /proxy — Check & clean proxies
+- /clearproxy — Clear all proxies
+
+### Admin Commands
+- /genkey <plan> <qty> <days> — Generate batch keys
+- /keys — List all keys
+- /revoke <key> — Revoke a key
+- /stats — Bot statistics
+- /user <id> — View user info
+- /ban <id> [reason] — Ban user
+- /unban <id> — Unban user
+- /charged — Recent charged cards
+- /backup — Backup database
+
+### Owner Commands
+- /broadcast <msg> — Broadcast to all users
+- /reloadsites — Reload store lists
+- /settier <id> <tier> <days> — Manual tier set
+
+## PREMIUM EMOJI IDs (30 total)
+- lightning: 5445388803223091254
+- warning: 5447592907424955482
+- card: 5447453226498552490
+- cart: 5447319442562251569
+- memo: 5444889156792646660
+- money: 5409048419211682843
+- globe_us: 5447602197439218445
+- globe_flag: 5445326466067754897
+- white_heart: 5764979527331615949
+- free: 5406756500108501710
+- chart: 5231200819986047254
+- gem: 5364040533498932357
+- gem_plans: 5215191209131123104
+- fire: 6181540309357305513
+- mobile: 5445033158456145975
+- check: 5447242579827523388
+- mailbox: 5445163772706582819
+- bronze: 5453902265922376865
+- silver: 5447203607294265305
+- gold: 5440539497383087970
+- crown: 6088920147072915408
+- cross: 6037570896766438989
+- refresh: 5971837723676249096
+- check_done: 6088893844693195262
+- clipboard: 5445260044398524944
+- hourglass: 5445350406215465190
+- smile: 5303438381743618017
+- hourglass_v2: 5454415424319931791
+- calendar: 5800810214689084012
+- warning_alt: 5447381715293074599
+- gift: 6089193719309801680
+
+## PROXY FORMAT SUPPORT
+- ip:port
+- ip:port:user:pass
+- user:pass@host:port (e.g. 6056:NuDEGjv02gPO@p101.instantproxies.com:9523)
+- socks5://ip:port
+- http://ip:port
+- Default proxies in proxy.txt (16 proxies loaded at startup)
+
+## ERROR HANDLING
+- 12+ exception types classified (CRITICAL/ERROR/WARNING/INFO)
+- Admin alerts on CRITICAL errors (60s cooldown)
+- safe_send/safe_edit with retry on Telegram rate limits
+- retry_async with exponential backoff
+- Health monitor (errors/minute tracking)
+- Global error handler (never crash silently)
+
+## ANTI-SPAM
+- Command cooldowns: /sh=3s, /st=3s, /chk=30s, /bin=2s, /addproxy=60s
+- Hourly limits: FREE=50, BASIC=200, PRO=500, MAX=1000, ULTRA=5000
+- Card repeat detection: same card within 5 min = blocked
+- Max 1 concurrent mass check per user
+
+## STORE HEALTH SCORING
+- 0-100 score per store
+- Auto-prioritizes good stores in mass check
+- In-memory cache for fast lookups
+- Updated after every check
+
+## DB SCHEMA (SQLite WAL mode)
+- users: user_id, tier, card_limit, workers, key_expires_at, banned, stats
+- key_batches: batch_id, tier, duration_days, total, message_id, chat_id
+- batch_keys: batch_id, key, position, tier, status, redeemed_by, expires_at
+- user_proxies: user_id, proxy, status
+- check_history: user_id, type, cards, live, dead, charged, duration
+- mass_check_state: user_id, cards_json, status (for resume)
+- bin_cache: bin, bank, brand, type, level, country
+- charged_cards: user_id, card, gateway, price, store, bin
+- admin_log: admin_id, action, target, details
+- store_health: url, checks, successes, failures, score
+
+## PROJECT STRUCTURE
+```
+aurora-checker/
+├── bot.py              # Entry point (28 commands)
+├── config.yaml         # Settings
+├── requirements.txt    # 5 deps (no rich/aiodns for Docker)
+├── Dockerfile          # python:3.11-slim, shell-form CMD
+├── railway.json        # Railway Pro config
+├── proxy.txt           # 16 default proxies
+├── sites/              # 9 store files (9,987 total)
+├── core/               # 14 modules
+├── handlers/           # 9 handlers
+├── templates/          # emojis.py + messages.py
+└── utils/              # logger.py + config_loader.py
+```

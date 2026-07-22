@@ -81,13 +81,23 @@ def ratio(part: int, total: int, w: int = 10) -> str:
 # ═════════════════════════════════════════════════════════════════════════
 # START
 # ═════════════════════════════════════════════════════════════════════════
-def format_start(tier, card_limit):
+def format_start(tier, card_limit, checks=0, charged=0, live=0):
+    stats_section = ""
+    if checks > 0:
+        stats_section = (
+            f"\n{e_chart()} 𝒀𝑶𝑼𝑹 𝑺𝑻𝑨𝑻𝑺 {e_chart()}\n{DS}\n"
+            f"{e_card()}  {B('ᴄʜᴇᴄᴋs')}   : {checks}\n"
+            f"{e_heart()}  {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}\n"
+            f"{e_smile()}  {B('ʟɪᴠᴇ')}    : {live}\n\n"
+        )
+
     return (
         f"{hdr()}\n\n"
-        f"{frame('𝑾𝑬𝑳𝑪𝑶𝑴𝑩')}\n\n"
+        f"{frame('𝑾𝑬𝑳𝑪𝑶𝑴𝑬')}\n\n"
         f"{e_free()}  {B('ᴛɪᴇʀ')}    : {tier}\n"
         f"{e_chart()} {B('ʟɪᴍɪᴛ')}   : {card_limit} ᴄᴀʀᴅs /ʀᴜɴ\n"
         f"{e_gem()}  {B('ʀᴇᴅᴇᴇᴍ')}  : /redeem &lt;key&gt;\n\n"
+        f"{stats_section}"
         f"{e_fire()} 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺 {e_fire()}\n{DS}\n"
         f"{e_card()}  /sh {I('cc')}     — Single Check (Shopify)\n"
         f"{e_card()}  /st {I('cc')}     — Single Check (Stripe)\n"
@@ -223,18 +233,19 @@ def format_checking(card):
 # ═════════════════════════════════════════════════════════════════════════
 # MASS CHECK OPTIONS
 # ═════════════════════════════════════════════════════════════════════════
-def format_mass_check_options(c5, c10, call, cc, warn="", chq=0, cv40=0):
+def format_mass_check_options(c5, c10, call, cc, warn="", chq=0, cv40=0, csureship=0, call_combined=0):
     t = (
         f"{hdr()}\n\n{frame('ᴍᴀss ᴄʜᴇᴄᴋ')}\n\n"
         f"📦  {B('sᴏᴜʀᴄᴇ')} : Global Sites\n"
         f"sᴇʟᴇᴄᴛ sɪᴛᴇs ᴘʀɪᴄᴇ ʀᴀɴɢᴇ:\n\n"
-        f"   • $1 − $5      ({c5})\n"
-        f"   • $1 − $10     ({c10})\n"
-        f"   • All Sites     ({call})\n"
-        f"   • {e_check_done()} HQ          ({chq})\n"
-        f"   • {e_lightning()} V40          ({cv40})\n\n"
+        f"   • $1 − $5        ({c5})\n"
+        f"   • $1 − $10       ({c10})\n"
+        f"   • Working         ({call})\n"
+        f"   • {e_check_done()} HQ            ({chq})\n"
+        f"   • {e_lightning()} V40            ({cv40})\n"
+        f"   • {e_lightning()} Sureship     ({csureship})\n"
+        f"   • {e_globe()} ALL Sites    ({call_combined})\n\n"
         f"{e_card()}  {B('ᴄᴀʀᴅs')}  : {cc}\n"
-        f"🏪  {B('sɪᴛᴇs')} : {call}\n"
     )
     if warn:
         t += f"\n{warn}"
@@ -361,7 +372,7 @@ def format_key_redeemed(tier, expiry, limit, workers):
     return (
         f"{hdr()}\n\n{frame('ᴋᴇʏ ʀᴇᴅᴇᴇᴍᴇᴅ')}\n\n"
         f"{e_gem()}      {B('ᴛɪᴇʀ')}      : {tier}\n"
-        f"📅      {B('ᴇxᴘɪʀᴇs')}   : {expiry}\n"
+        f"{e_calendar()}      {B('ᴇxᴘɪʀᴇs')}   : {expiry}\n"
         f"{e_chart()}     {B('ʟɪᴍɪᴛ')}     : {limit}/ʀᴜɴ\n"
         f"{e_lightning()}     {B('ᴡᴏʀᴋᴇʀs')}  : {workers}\n\n"
         f"{ftr()}"
@@ -402,7 +413,7 @@ def format_batch_redeem_success(tier, duration, expires_str, key, position, card
         f"{e_gem()} {B('Tier')}: {tier} ({card_limit} cards/chk)\n"
         f"{e_hourglass_v2()} {B('Duration')}: {duration} day(s)\n"
         f"{e_calendar()} {B('Expires')}: {expires_str}\n"
-        f"🔑 {B('Key')}: {C(key)} ({position})"
+        f"{e_gem()} {B('Key')}: {C(key)} ({position})"
     )
 
 
@@ -447,7 +458,7 @@ def format_status_user(tier, expires, expired, card_limit, workers):
             f"{e_gem()}  {B('ᴛɪᴇʀ')}    : {tier}\n"
             f"{e_chart()} {B('ʟɪᴍɪᴛ')}   : {card_limit}/ʀᴜɴ\n"
             f"{e_lightning()} {B('ᴡᴏʀᴋᴇʀs')}  : {workers}\n"
-            f"📅  {B('ᴇxᴘɪʀᴇs')} : No active key\n\n"
+            f"{e_calendar()}  {B('ᴇxᴘɪʀᴇs')} : No active key\n\n"
             f"{ftr()}"
         )
     return (
@@ -455,7 +466,7 @@ def format_status_user(tier, expires, expired, card_limit, workers):
         f"{e_gem()}  {B('ᴛɪᴇʀ')}    : {tier}\n"
         f"{e_chart()} {B('ʟɪᴍɪᴛ')}   : {card_limit}/ʀᴜɴ\n"
         f"{e_lightning()} {B('ᴡᴏʀᴋᴇʀs')}  : {workers}\n"
-        f"📅  {B('ᴇxᴘɪʀᴇs')} : {expires}\n\n"
+        f"{e_calendar()}  {B('ᴇxᴘɪʀᴇs')} : {expires}\n\n"
         f"{ftr()}"
     )
 
@@ -490,4 +501,4 @@ def format_proxy_cleaned(live, dead):
 
 
 def format_proxy_cleared(count):
-    return f"{hdr()}\n\n{frame('ᴘʀᴏxɪᴇs ᴄʟᴇᴀʀᴇᴅ')}\n\n🗑️ {B(f'ᴄʟᴇᴀʀᴇᴅ {count} ᴘʀᴏxɪᴇs.')}\n\n{D}"
+    return f"{hdr()}\n\n{frame('ᴘʀᴏxɪᴇs ᴄʟᴇᴀʀᴇᴅ')}\n\n{e_cross()} {B(f'ᴄʟᴇᴀʀᴇᴅ {count} ᴘʀᴏxɪᴇs.')}\n\n{D}"

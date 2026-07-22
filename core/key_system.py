@@ -25,13 +25,7 @@ KEY_PATTERN = re.compile(
     r"^AURORA-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$"
 )
 
-TIER_CONFIG = {
-    "FREE":  {"workers": 10,  "card_limit": 500,   "speed": "Low"},
-    "BASIC": {"workers": 20,  "card_limit": 1000,  "speed": "Decent"},
-    "PRO":   {"workers": 30,  "card_limit": 5000,  "speed": "Medium"},
-    "MAX":   {"workers": 50,  "card_limit": 10000, "speed": "Fast"},
-    "ULTRA": {"workers": 200, "card_limit": 50000, "speed": "Ultra Fast"},
-}
+from core.tier_manager import TIER_CONFIG
 
 REDEEM_COOLDOWN = 3 * 3600  # 3 hours
 
@@ -246,7 +240,7 @@ def get_batch_status(conn: sqlite3.Connection, batch_id: str) -> dict:
         return {"total": 0, "redeemed": 0, "remaining": 0}
 
     redeemed = conn.execute(
-        "SELECT COUNT(*) FROM batch_keys WHERE batch_id = ? AND status = 'redeemed'",
+        "SELECT COUNT(*) FROM batch_keys WHERE batch_id = ? AND status IN ('redeemed', 'revoked')",
         (batch_id,),
     ).fetchone()[0]
 
@@ -276,8 +270,10 @@ def redeem_direct_key(
     if not row:
         return RedemptionResult(success=False, message="Key not found.")
 
-    if row["status"] == "redeemed":
-        return RedemptionResult(success=False, message="Key already redeemed.")
+    if row["status"] in ("redeemed", "revoked"):
+        if row["status"] == "redeemed":
+            return RedemptionResult(success=False, message="Key already redeemed.")
+        return RedemptionResult(success=False, message="Key has been revoked.")
 
     return redeem_batch_key(conn, row, user_id)
 

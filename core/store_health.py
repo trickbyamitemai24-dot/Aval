@@ -40,11 +40,16 @@ def init_store_health(conn: sqlite3.Connection):
 
 def record_check(conn: sqlite3.Connection, url: str, success: bool, response_ms: int = 0):
     """Record a store check result."""
+    _record_check_internal(conn, url, success, response_ms)
+    conn.commit()
+
+
+def _record_check_internal(conn: sqlite3.Connection, url: str, success: bool, response_ms: int = 0):
+    """Record a store check result without committing. Caller must commit."""
     now = time.time()
     s = 1 if success else 0
     f = 0 if success else 1
 
-    # Simple upsert
     existing = conn.execute("SELECT * FROM store_health WHERE url = ?", (url,)).fetchone()
     if existing:
         new_checks = existing["checks"] + 1
@@ -62,7 +67,6 @@ def record_check(conn: sqlite3.Connection, url: str, success: bool, response_ms:
             """INSERT INTO store_health (url, checks, successes, failures, avg_response_ms, last_check, score) VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (url, 1, s, f, response_ms, now, score),
         )
-    conn.commit()
 
 
 def get_store_score(conn: sqlite3.Connection, url: str) -> float:

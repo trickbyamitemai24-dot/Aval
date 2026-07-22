@@ -79,6 +79,7 @@ class RateLimiter:
         """Check if user is under hourly check limit.
         
         Returns: (allowed, remaining)
+        Note: This reserves the count. Call refund_hourly() if the check fails.
         """
         self._cleanup(user_id)
         limit = self.HOURLY_LIMITS.get(tier, self.HOURLY_LIMITS["FREE"])
@@ -90,10 +91,15 @@ class RateLimiter:
 
         return False, limit - used
 
+    def refund_hourly(self, user_id: int, amount: int = 1):
+        """Refund hourly count if a check failed or was cancelled."""
+        self._hourly[user_id].append((time.time(), -amount))
+
     def can_start_mass(self, user_id: int) -> tuple[bool, int]:
         """Check if user can start a mass check.
         
         Returns: (allowed, active_count)
+        Note: This increments the counter. Call end_mass() or cancel_mass() when done.
         """
         active = self._active_mass[user_id]
         if active >= self.MAX_CONCURRENT_MASS:
@@ -103,6 +109,11 @@ class RateLimiter:
 
     def end_mass(self, user_id: int):
         """Mark a mass check as finished."""
+        if self._active_mass[user_id] > 0:
+            self._active_mass[user_id] -= 1
+
+    def cancel_mass(self, user_id: int):
+        """Cancel a mass check that was started but never ran."""
         if self._active_mass[user_id] > 0:
             self._active_mass[user_id] -= 1
 

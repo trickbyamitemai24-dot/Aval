@@ -130,7 +130,7 @@ async def redeem_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if ctx.args:
         key = ctx.args[0].strip()
         result = redeem_direct_key(conn, key, user.id)
-        _send_redeem_result(update, ctx, result, conn)
+        await _send_redeem_result(update, ctx, result, conn)
         return
 
     # Case 2: Reply to key message with /redeem → auto-pick next unused
@@ -156,7 +156,7 @@ async def redeem_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 return
 
             result = redeem_batch_key(conn, key_row, user.id)
-            _send_redeem_result(update, ctx, result, conn)
+            await _send_redeem_result(update, ctx, result, conn)
             return
         else:
             # Maybe the replied message contains a key in text
@@ -167,7 +167,7 @@ async def redeem_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if match:
                 key = match.group(0)
                 result = redeem_direct_key(conn, key, user.id)
-                _send_redeem_result(update, ctx, result, conn)
+                await _send_redeem_result(update, ctx, result, conn)
                 return
 
     # No args and no reply
@@ -176,6 +176,8 @@ async def redeem_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 def _send_redeem_result(update, ctx, result: RedemptionResult, conn):
     """Send the appropriate redemption result message."""
+    # Note: This is called from an async context but is itself sync.
+    # We return the coroutine for the caller to await.
     if result.success:
         text = format_batch_redeem_success(
             tier=result.tier,
@@ -188,21 +190,21 @@ def _send_redeem_result(update, ctx, result: RedemptionResult, conn):
             position=result.position,
             card_limit=result.card_limit,
         )
-        asyncio.create_task(update.message.reply_text(text, parse_mode=ParseMode.HTML))
         logger.info("User %d redeemed key %s (%s)", update.effective_user.id, result.key, result.position)
+        return update.message.reply_text(text, parse_mode=ParseMode.HTML)
     else:
         if "not found" in result.message.lower():
-            asyncio.create_task(update.message.reply_text(
+            return update.message.reply_text(
                 format_key_not_found(), parse_mode=ParseMode.HTML,
-            ))
+            )
         elif "already" in result.message.lower():
-            asyncio.create_task(update.message.reply_text(
+            return update.message.reply_text(
                 format_key_already_redeemed(), parse_mode=ParseMode.HTML,
-            ))
+            )
         else:
-            asyncio.create_task(update.message.reply_text(
+            return update.message.reply_text(
                 format_error(result.message), parse_mode=ParseMode.HTML,
-            ))
+            )
 
 
 async def status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):

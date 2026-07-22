@@ -16,6 +16,7 @@ from core.database import is_banned, increment_check_stats
 from templates.messages import (
     format_single_check,
     format_usage_sh,
+    format_usage_st,
     format_card_error,
     format_error,
     format_banned,
@@ -84,8 +85,12 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         format_checking(card), parse_mode=ParseMode.HTML
     )
 
-    # Pick random store
-    stores = ctx.bot_data.get("stores_all", [])
+    # Pick random store from all combined sites
+    loader = ctx.bot_data.get("loader")
+    if loader:
+        stores = loader.get_stores("all_combined")
+    else:
+        stores = ctx.bot_data.get("stores_all", [])
     if not stores:
         await checking_msg.edit_text(format_error("No stores available."))
         return
@@ -100,7 +105,7 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pm = ctx.bot_data.get("proxy_manager")
     proxy = pm.get_proxy(user.id) if pm else None
 
-    result = await shopify_check(card, store, proxy=proxy, timeout=15)
+    result = await shopify_check(card, store, proxy=proxy, timeout=30)
 
     # BIN lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]
@@ -213,7 +218,8 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     proxy = pm.get_proxy(user.id) if pm else None
 
     # Run Stripe check
-    result = await stripe_check(card, proxy=proxy, timeout=15)
+    stripe_sk = ctx.bot_data["config"].get("stripe", {}).get("secret_key", "")
+    result = await stripe_check(card, proxy=proxy, timeout=15, secret_key=stripe_sk)
 
     # BIN lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]

@@ -30,7 +30,7 @@ from core.store_health import init_store_health, StoreHealthCache
 from utils.config_loader import load_config
 from utils.logger import setup_logging
 
-from handlers.start import start_cmd, status_cmd
+from handlers.start import start_cmd, status_cmd, start_callback
 from handlers.help import help_cmd
 from handlers.single_check import single_check_cmd, stripe_check_cmd
 from handlers.bin_handler import bin_cmd
@@ -61,6 +61,8 @@ from handlers.admin import (
     settier_cmd,
     charged_cmd,
     backup_cmd,
+    chk_all_site_cmd,
+    handle_deletion_callback,
 )
 from handlers.proxy_handler import (
     addproxy_cmd,
@@ -176,6 +178,12 @@ def main():
     app.add_handler(CommandHandler("st", stripe_check_cmd))
     app.add_handler(CommandHandler("bin", bin_cmd))
 
+    # Start inline button callbacks
+    app.add_handler(CallbackQueryHandler(
+        start_callback,
+        pattern=r"^start_(sh|chk|plans|redeem|status|proxy)$",
+    ))
+
     # Mass check conversation: /chk → wait for file → process
     mass_conv = ConversationHandler(
         entry_points=[CommandHandler("chk", mass_check_cmd)],
@@ -191,7 +199,7 @@ def main():
     # Inline button callback for price range selection
     app.add_handler(CallbackQueryHandler(
         mass_check_callback,
-        pattern=r"^mc_(price_5|price_10|price_all|price_hq|price_v40|cancel)$",
+        pattern=r"^mc_(price_5|price_10|price_all|price_hq|price_v40|price_sureship|price_all_combined|cancel)$",
     ))
 
     # Resume interrupted mass check
@@ -214,6 +222,13 @@ def main():
     app.add_handler(CommandHandler("settier", settier_cmd))
     app.add_handler(CommandHandler("charged", charged_cmd))
     app.add_handler(CommandHandler("backup", backup_cmd))
+    app.add_handler(CommandHandler("chk_all_site", chk_all_site_cmd))
+
+    # Callback for bad store deletion approval
+    app.add_handler(CallbackQueryHandler(
+        handle_deletion_callback,
+        pattern=r"^(delete_bad_stores|cancel_deletion)$",
+    ))
 
     # Proxy commands
     app.add_handler(CommandHandler("proxy", proxy_cmd))
@@ -235,6 +250,9 @@ def main():
     # Global error handler (catches ALL unhandled exceptions)
     app.add_error_handler(error_handler.handle_error)
 
+    # Shutdown handler
+    app.post_shutdown = _shutdown
+
     logger.info("Bot handlers registered (28 commands). Starting polling...")
 
     # Start health check server in background thread (Railway healthcheck)
@@ -243,6 +261,30 @@ def main():
     # Run bot — blocks until stopped
     # PTB handles SIGINT/SIGTERM internally
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+async def _shutdown(app):
+    """Clean up resources on shutdown."""
+    logger.info("Shutting down — cleaning up resources...")
+    try:
+        pm = app.bot_data.get("proxy_manager")
+        if pm and hasattr(pm, "close"):
+            await pm.close()
+    except Exception:
+        pass
+    try:
+        bl = app.bot_data.get("bin_lookup")
+        if bl and hasattr(bl, "close"):
+            await bl.close()
+    except Exception:
+        pass
+    try:
+        conn = app.bot_data.get("db")
+        if conn:
+            conn.close()
+    except Exception:
+        pass
+    logger.info("Shutdown complete.")
 
 
 if __name__ == "__main__":

@@ -34,6 +34,9 @@ proxy:
   validation_url: "https://httpbin.org/ip"
   default_file: "proxy.txt"
 
+stripe:
+  secret_key: ${STRIPE_SECRET_KEY}
+
 bin_lookup:
   api_url: ""
   cache_ttl_hours: 720
