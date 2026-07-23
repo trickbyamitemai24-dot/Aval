@@ -327,7 +327,7 @@ async def _run_mass_amazon(cards, cookies, conn, user_id, bot, chat_id,
         format_amazon_mass_complete,
         format_amazon_approved_list,
     )
-    from core.amazon_checker import BATCH_SIZE
+    from core.amazon_checker import BATCH_SIZE, is_cookie_expired
 
     total = len(cards)
     checked = 0
@@ -337,6 +337,7 @@ async def _run_mass_amazon(cards, cookies, conn, user_id, bot, chat_id,
     error_count = 0
     start_time = time.time()
     last_update = 0
+    cookie_expired = False
 
     # Process in batches
     for i in range(0, total, BATCH_SIZE):
@@ -352,6 +353,8 @@ async def _run_mass_amazon(cards, cookies, conn, user_id, bot, chat_id,
                 declined_count += 1
             else:
                 error_count += 1
+                if is_cookie_expired(result):
+                    cookie_expired = True
 
         # Progress update (every 3 seconds)
         now = time.time()
@@ -371,6 +374,18 @@ async def _run_mass_amazon(cards, cookies, conn, user_id, bot, chat_id,
                 )
             except Exception:
                 pass
+
+        # Early exit: cookies expired — no point continuing
+        if cookie_expired and approved_count == 0 and i == 0:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=format_cookies_missing(),
+                    parse_mode=ParseMode.HTML,
+                )
+            except Exception:
+                pass
+            break
 
     # Final summary
     elapsed = time.time() - start_time
