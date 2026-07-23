@@ -112,6 +112,16 @@ CREATE TABLE IF NOT EXISTS admin_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS user_cookies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    cookies TEXT NOT NULL,
+    provider TEXT DEFAULT 'amazon',
+    set_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, provider),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_tier ON users(tier);
 CREATE INDEX IF NOT EXISTS idx_keys_active ON keys(active);
 CREATE INDEX IF NOT EXISTS idx_keys_redeemed_by ON keys(redeemed_by);
@@ -226,4 +236,57 @@ def batch_log_charged_cards(conn: sqlite3.Connection, user_id: int, cards: list)
             (user_id, card.number, card.masked, res.gateway, res.message,
              res.price, res.store, card.bin),
         )
+    conn.commit()
+
+
+# ── User cookies (Amazon / other providers) ───────────────────────────
+
+def set_user_cookies(conn: sqlite3.Connection, user_id: int,
+                     cookies: str, provider: str = "amazon"):
+    """Insert or replace a user's cookies for a provider."""
+    conn.execute(
+        """INSERT INTO user_cookies (user_id, cookies, provider, set_at)
+           VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(user_id, provider) DO UPDATE SET
+               cookies = excluded.cookies,
+               set_at = excluded.set_at""",
+        (user_id, cookies, provider),
+    )
+    conn.commit()
+
+
+def get_user_cookies(conn: sqlite3.Connection, user_id: int,
+                      provider: str = "amazon"):
+    """Return cookies row (dict-like) or None."""
+    return conn.execute(
+        "SELECT * FROM user_cookies WHERE user_id = ? AND provider = ?",
+        (user_id, provider),
+    ).fetchone()
+
+
+def clear_user_cookies(conn: sqlite3.Connection, user_id: int,
+                       provider: str = "amazon") -> bool:
+    """Delete a user's cookies. Returns True if a row was removed."""
+    cur = conn.execute(
+        "DELETE FROM user_cookies WHERE user_id = ? AND provider = ?",
+        (user_id, provider),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+# ── Amazon check history ──────────────────────────────────────────────
+
+def log_amazon_check(conn: sqlite3.Connection, user_id: int,
+                     cards_total: int, approved: int = 0,
+                     declined: int = 0, errors: int = 0,
+                     duration: float = 0.0):
+    """Log an Amazon check run to check_history."""
+    conn.execute(
+        """INSERT INTO check_history
+           (user_id, check_type, cards_total, cards_live, cards_dead,
+            cards_charged, price_range, duration_seconds)
+           VALUES (?, 'amazon', ?, ?, ?, ?, NULL, ?)""",
+        (user_id, cards_total, approved, declined, errors, duration),
+    )
     conn.commit()

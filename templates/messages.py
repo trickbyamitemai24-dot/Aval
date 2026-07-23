@@ -101,13 +101,20 @@ def format_start(tier, card_limit, checks=0, charged=0, live=0):
         f"{e_fire()} 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺 {e_fire()}\n{DS}\n"
         f"{e_card()}  /sh {I('cc')}     — Single Check (Shopify)\n"
         f"{e_card()}  /st {I('cc')}     — Single Check (Stripe)\n"
+        f"{e_card()}  /amz {I('cc')}    — Single Check (Amazon)\n"
         f"{e_card()}  /bin {I('bin')}   — BIN Lookup\n"
+        f"{e_card()}  /ccgen           — Generate valid cards\n"
         f"{e_memo()}  /chk      — Mass Check (.txt)\n"
+        f"{e_memo()}  /massamz  — Mass Amazon (.txt)\n"
         f"{e_check()} /resume   — Resume interrupted\n\n"
         f"{e_mobile()} 𝑷𝑹𝑶𝑿𝑰𝑶𝑺 {e_mobile()}\n{DS}\n"
         f"{e_check()}  /addproxy   — Add proxies\n"
         f"{e_check()}  /proxy      — Check &amp; clean\n"
         f"{e_check()}  /clearproxy — Clear all\n\n"
+        f"{e_cart()} 𝑨𝑴𝑨𝒁𝑶𝑵 𝑪𝑶𝑶𝑲𝑰𝑬𝑺 {e_cart()}\n{DS}\n"
+        f"{e_check()}  /setcookies — Set cookies\n"
+        f"{e_check()}  /cookies    — View status\n"
+        f"{e_check()}  /clearcookies — Clear\n\n"
         f"{ftr()}"
     )
 
@@ -177,8 +184,11 @@ def format_help():
         f"{e_fire()} 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺 {e_fire()}\n{DS}\n"
         f"{e_card()}  /sh {I('cc')}      — Single Check (Shopify)\n"
         f"{e_card()}  /st {I('cc')}      — Single Check (Stripe)\n"
+        f"{e_card()}  /amz {I('cc')}     — Single Check (Amazon)\n"
         f"{e_card()}  /bin {I('bin')}    — BIN Lookup\n"
+        f"{e_card()}  /ccgen            — Generate Luhn-valid cards\n"
         f"{e_memo()}  /chk       — Mass Check (.txt)\n"
+        f"{e_memo()}  /massamz   — Mass Amazon Check (.txt)\n"
         f"{e_check()} /resume    — Resume interrupted\n"
         f"{e_gem()}  /redeem {I('key')}  — Redeem a key\n"
         f"{e_clipboard()} /plans     — View pricing\n\n"
@@ -186,6 +196,10 @@ def format_help():
         f"   /addproxy   — Add proxies\n"
         f"   /proxy      — Check &amp; clean\n"
         f"   /clearproxy — Clear all\n\n"
+        f"{e_cart()} 𝑨𝑴𝑨𝒁𝑶𝑵 𝑪𝑶𝑶𝑲𝑰𝑬𝑺 {e_cart()}\n{DS}\n"
+        f"   /setcookies {I('cookies')} — Set Amazon cookies\n"
+        f"   /cookies             — View cookie status\n"
+        f"   /clearcookies        — Clear cookies\n\n"
         f"{ftr()}"
     )
 
@@ -502,3 +516,233 @@ def format_proxy_cleaned(live, dead):
 
 def format_proxy_cleared(count):
     return f"{hdr()}\n\n{frame('ᴘʀᴏxɪᴇs ᴄʟᴇᴀʀᴇᴅ')}\n\n{e_cross()} {B(f'ᴄʟᴇᴀʀᴇᴅ {count} ᴘʀᴏxɪᴇs.')}\n\n{D}"
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# CC GENERATOR
+# ═════════════════════════════════════════════════════════════════════════
+def format_ccgen(cards, bin_prefix="RANDOM", count=10, fixed_month=None, fixed_year=None):
+    """Format generated cards output with copy block."""
+    from templates.emojis import e_gift
+    cards_text = "\n".join(cards)
+
+    expiry_label = "Random"
+    if fixed_month and fixed_year:
+        expiry_label = f"{fixed_month}/{fixed_year}"
+
+    return (
+        f"{hdr()}\n\n{frame('ᴠᴀʟɪᴅ ᴄᴄ ɢᴇɴ')}\n\n"
+        f"{e_card()}   {B('ɢᴇɴᴇʀᴀᴛᴇᴅ')} : {count} ᴄᴀʀᴅ(s)\n"
+        f"{e_card()}   {B('ʙɪɴ')}      : {bin_prefix}\n"
+        f"{e_calendar()}  {B('ᴇxᴘɪʀʏ')}  : {expiry_label}\n\n"
+        f"<code>{cards_text}</code>\n\n"
+        f"{ftr()}"
+    )
+
+
+def format_ccgen_usage():
+    """Usage instructions for /ccgen."""
+    return (
+        f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n\n"
+        f"{C('/ccgen')}                       — 10 random cards\n"
+        f"{C('/ccgen <count>')}               — N random cards\n"
+        f"{C('/ccgen <bin> <count>')}         — N cards with BIN\n"
+        f"{C('/ccgen <bin> <mm> <yyyy> <n>')} — N cards, fixed expiry\n\n"
+        f"{B('ᴇxᴀᴍᴘʟᴇs:')}\n"
+        f"{C('/ccgen 25')}\n"
+        f"{C('/ccgen 479851 10')}\n"
+        f"{C('/ccgen 479851 12 2028 5')}\n\n"
+        f"{I('ᴍᴀx 50 ᴄᴀʀᴅs ᴘᴇʀ ɢᴇɴ.')}"
+    )
+
+
+def format_amazon_usage():
+    """Usage for /amz."""
+    return (
+        f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
+        f"{C('/amz 4532640527811643|12|2025|123')}\n\n"
+        f"Or reply to a card message with {C('/amz')}\n\n"
+        f"{I('sᴇᴛ ᴄᴏᴏᴋɪᴇs ғɪʀsᴛ:')} {C('/setcookies <your_amazon_cookies>')}"
+    )
+
+
+def format_massamz_usage():
+    """Usage for /massamz."""
+    return (
+        f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
+        f"Send {C('/massamz')} then upload a .txt file with cards.\n"
+        f"One card per line: {C('NUMBER|MM|YYYY|CVV')}\n\n"
+        f"{I('ᴇɴsᴜʀᴇ ʏᴏᴜ ʜᴀᴠᴇ ᴄᴏᴏᴋɪᴇs sᴇᴛ:')} {C('/setcookies <cookies>')}"
+    )
+
+
+def format_cookies_saved(set_at):
+    """Cookies saved successfully."""
+    return (
+        f"{e_check_done()} {B('ᴀᴍᴀᴢᴏɴ ᴄᴏᴏᴋɪᴇs sᴀᴠᴇᴅ!')}\n\n"
+        f"{e_calendar()} {B('sᴇᴛ ᴀᴛ')} : {set_at}\n"
+        f"{I('ᴛᴏ ᴜᴘᴅᴀᴛᴇ: /setcookies <new_cookies>')}"
+    )
+
+
+def format_cookies_missing():
+    """No cookies set."""
+    return (
+        f"{e_cross()} {B('ɴᴏ ᴀᴍᴀᴢᴏɴ ᴄᴏᴏᴋɪᴇs ғᴏᴜɴᴅ.')}\n\n"
+        f"{B('sᴇᴛ ʏᴏᴜʀ ᴄᴏᴏᴋɪᴇs:')}\n"
+        f"{C('/setcookies <your_cookies>')}\n\n"
+        f"{I('ɢᴇᴛ ᴄᴏᴏᴋɪᴇs ғʀᴏᴍ ʙʀᴏᴡsᴇʀ ᴅᴇᴠᴛᴏᴏʟs (F12) → ɴᴇᴛᴡᴏʀᴋ → ᴄᴏᴘʏ ᴄᴏᴏᴋɪᴇ ʜᴇᴀᴅᴇʀ')}"
+    )
+
+
+def format_cookies_status(set_at):
+    """Show cookies status."""
+    return (
+        f"{e_check_done()} {B('ᴄᴏᴏᴋɪᴇs ᴀᴄᴛɪᴠᴇ')}\n\n"
+        f"{e_calendar()} {B('sᴇᴛ ᴀᴛ')} : {set_at}\n\n"
+        f"{I('ᴜᴘᴅᴀᴛᴇ: /setcookies <new_cookies>')}\n"
+        f"{I('ᴄʟᴇᴀʀ: /clearcookies')}"
+    )
+
+
+def format_cookies_cleared():
+    """Cookies cleared."""
+    return f"{e_cross()} {B('ᴀᴍᴀᴢᴏɴ ᴄᴏᴏᴋɪᴇs ᴄʟᴇᴀʀᴇᴅ.')}"
+
+
+def format_cookies_usage():
+    """Usage for /setcookies."""
+    return (
+        f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
+        f"{C('/setcookies <your_amazon_cookies>')}\n\n"
+        f"{I('ᴄᴏᴏᴋɪᴇs ғʀᴏᴍ ʙʀᴏᴡsᴇʀ ᴅᴇᴠᴛᴏᴏʟs (F12)')}\n"
+        f"{I('→ ɴᴇᴛᴡᴏʀᴋ ᴛᴀʙ → ᴀɴʏ ᴀᴍᴀᴢᴏɴ ʀᴇQᴜᴇsᴛ → ᴄᴏᴘʏ ᴄᴏᴏᴋɪᴇ ʜᴇᴀᴅᴇʀ')}"
+    )
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# AMAZON CHECK
+# ═════════════════════════════════════════════════════════════════════════
+def format_amazon_check(status, card, response, bin_info=None, flag=""):
+    """Format Amazon single check result.
+
+    status: 'APPROVED' | 'DECLINED' | 'ERROR'
+    """
+    sm = {
+        "APPROVED": (e_heart(),      "𝑨𝑷𝑷𝑹𝑶𝑽𝑬𝑫"),
+        "DECLINED": (e_warning(),   "𝑫𝑬𝑪𝑳𝑰𝑵𝑬𝑫"),
+        "ERROR":    (e_warning(),   "ᴇʀʀᴏʀ"),
+    }
+    ei, label = sm.get(status, (e_warning(), "ᴇʀʀᴏʀ"))
+
+    # Full card for approved, masked for declined/error
+    if status == "APPROVED":
+        cc_show = grp(card.number)
+        cc_full = f"{cc_show}|{card.month}|{card.year}|{card.cvv}"
+    else:
+        cc_full = card.masked
+
+    bin_section = ""
+    if bin_info:
+        bn = f"{bin_info.get('brand','?')} − {bin_info.get('type','?')} − {bin_info.get('level','?')}"
+        bin_section = (
+            f"{DS}\n"
+            f"{e_card()}   {B('ʙɪɴ')}      : {bn}\n"
+            f"{e_globe()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
+            f"{e_globe_flag()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n"
+        )
+
+    return (
+        f"{hdr()}\n\n"
+        f"{frame(label)}\n"
+        f"   {ei} {ei} {ei}\n\n"
+        f"{e_card()}   {B('ᴄᴄ')}       : {C(cc_full)}\n"
+        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : Amazon Auth\n"
+        f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {sc(response)}\n\n"
+        f"{bin_section}"
+        f"{ftr()}"
+    )
+
+
+def format_amazon_checking(card):
+    """Checking message for Amazon."""
+    return (
+        f"{hdr()}\n\n"
+        f"{e_refresh()} {B('ᴄʜᴇᴄᴋɪɴɢ ᴏɴ ᴀᴍᴀᴢᴏɴ...')}\n"
+        f"{e_card()} {C(grp_masked(card))}\n\n"
+        f"{e_hourglass()} {I('ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...')}\n\n{D}"
+    )
+
+
+def format_amazon_mass_options(card_count):
+    """Mass Amazon check options (before starting)."""
+    return (
+        f"{hdr()}\n\n{frame('ᴍᴀss ᴀᴍᴀᴢᴏɴ')}\n\n"
+        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')} : Amazon Auth (Leviatan)\n"
+        f"{e_card()}   {B('ᴄᴀʀᴅs')}   : {card_count}\n\n"
+        f"{e_refresh()} {B('sᴛᴀʀᴛɪɴɢ ᴍᴀss ᴄʜᴇᴄᴋ...')}\n\n{D}"
+    )
+
+
+def format_amazon_mass_progress(total, checked, duration, approved, declined, errors):
+    """Progress for mass Amazon check."""
+    pct = (checked / total) if total > 0 else 0
+    pct_num = int(pct * 100)
+
+    eta_str = ""
+    if checked > 0 and duration:
+        parts = duration.split("m ")
+        if len(parts) == 2:
+            try:
+                mins = int(parts[0])
+                secs = int(parts[1].rstrip("s"))
+                elapsed_s = mins * 60 + secs
+                rate = elapsed_s / checked
+                remaining = int((total - checked) * rate)
+                eta_m = remaining // 60
+                eta_s = remaining % 60
+                eta_str = f" | ᴇᴛᴀ: {eta_m}m {eta_s}s"
+            except (ValueError, ZeroDivisionError):
+                pass
+
+    return (
+        f"{hdr()}\n\n{frame('ᴍᴀss ᴀᴍᴀᴢᴏɴ')}\n\n"
+        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : Amazon Auth\n"
+        f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n\n"
+        f"{bar(pct)}\n"
+        f"   {checked}/{total} ({pct_num}%)\n"
+        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}{eta_str}\n\n"
+        f"{DS}\n"
+        f"{e_heart()}     {B('ᴀᴘᴘʀᴏᴠᴇᴅ')}  : {approved}  {ratio(approved, total)}\n"
+        f"{e_warning()}   {B('ᴅᴇᴄʟɪɴᴇᴅ')} : {declined}  {ratio(declined, total)}\n"
+        f"{e_cross()}     {B('ᴇʀʀᴏʀ')}     : {errors}  {ratio(errors, total)}\n\n"
+        f"{D}"
+    )
+
+
+def format_amazon_mass_complete(total, duration, approved, declined, errors):
+    """Final summary for mass Amazon check."""
+    rate = int((approved / total * 100)) if total > 0 else 0
+    return (
+        f"{hdr()}\n\n{frame('ᴀᴍᴀᴢᴏɴ ᴄʜᴇᴄᴋ ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
+        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : Amazon Auth\n"
+        f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n"
+        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
+        f"{DS}\n"
+        f"{e_heart()}     {B('ᴀᴘᴘʀᴏᴠᴇᴅ')}  : {approved}  {ratio(approved, total)}\n"
+        f"{e_warning()}   {B('ᴅᴇᴄʟɪɴᴇᴅ')} : {declined}  {ratio(declined, total)}\n"
+        f"{e_cross()}     {B('ᴇʀʀᴏʀ')}     : {errors}  {ratio(errors, total)}\n\n"
+        f"{DS}\n"
+        f"📈  {B('ᴀᴘᴘʀᴏᴠᴀʟ ʀᴀᴛᴇ')} : {rate}%\n\n"
+        f"{ftr()}"
+    )
+
+
+def format_amazon_approved_list(cards):
+    """List of approved Amazon cards."""
+    lines = [f"{hdr()}\n\n{frame(f'ᴀᴍᴀᴢᴏɴ ᴀᴘᴘʀᴏᴠᴇᴅ ({len(cards)})')}\n"]
+    for i, (card, response) in enumerate(cards, 1):
+        lines.append(f"{e_heart()} {i}. {C(card.raw)}")
+        lines.append(f"   {sc(response)}")
+    lines.append(f"\n{ftr()}")
+    return "\n".join(lines)

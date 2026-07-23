@@ -26,6 +26,10 @@ class RateLimiter:
         "bin": 2,        # 2s between bin lookups
         "addproxy": 60,  # 1m between proxy adds
         "proxy": 30,     # 30s between proxy cleans
+        "ccgen": 5,      # 5s between card generations
+        "amz": 5,        # 5s between Amazon single checks
+        "massamz": 30,   # 30s between mass Amazon checks
+        "setcookies": 10, # 10s between cookie sets
     }
 
     # Max checks per hour per tier

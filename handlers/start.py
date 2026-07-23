@@ -9,7 +9,10 @@ from core.database import get_or_create_user, is_banned
 from core.tier_manager import get_user_config, get_user_tier
 from core.rate_limiter import rate_limiter
 from templates.messages import format_start, format_banned, format_plans
-from templates.emojis import e_card, e_memo, e_gem, e_clipboard, e_mobile
+from templates.emojis import (
+    e_card, e_memo, e_gem, e_clipboard, e_mobile,
+    e_check_done, e_warning, e_lightning, e_chart, e_mailbox,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +154,7 @@ async def status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     store_counts = loader.get_counts() if loader else {}
 
     health_emoji = e_check_done() if health["healthy"] else e_warning()
+    health_text = "Healthy" if health["healthy"] else "Degraded"
 
     text = (
         f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
@@ -168,11 +172,11 @@ async def status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"  $5: {store_counts.get('5', 0)}\n"
         f"  $10: {store_counts.get('10', 0)}\n"
         f"  HQ: {store_counts.get('hq', 0)}\n\n"
-        f"📋 <b>Bot Health</b>\n"
+        f"{e_clipboard()} <b>Bot Health</b>\n"
         f"  Errors (1m): {health['errors_last_minute']}\n"
         f"  Total errors: {health['total_errors']}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📬 <i>Owner: @rayzenqx</i>"
+        f"{e_mailbox()} <i>Owner: @rayzenqx</i>"
     )
 
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)

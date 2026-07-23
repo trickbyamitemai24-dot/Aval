@@ -34,6 +34,19 @@ from handlers.start import start_cmd, status_cmd, start_callback
 from handlers.help import help_cmd
 from handlers.single_check import single_check_cmd, stripe_check_cmd
 from handlers.bin_handler import bin_cmd
+from handlers.ccgen import ccgen_cmd
+from handlers.cookie_handler import (
+    setcookies_cmd,
+    cookies_status_cmd,
+    clearcookies_cmd,
+)
+from handlers.amazon_handler import (
+    amz_check_cmd,
+    massamz_check_cmd,
+    receive_amz_card_file,
+    cancel_massamz,
+    WAITING_FOR_AMZ_FILE,
+)
 from handlers.mass_check import (
     mass_check_cmd,
     receive_card_file,
@@ -177,6 +190,13 @@ def main():
     app.add_handler(CommandHandler("sh", single_check_cmd))
     app.add_handler(CommandHandler("st", stripe_check_cmd))
     app.add_handler(CommandHandler("bin", bin_cmd))
+    app.add_handler(CommandHandler("ccgen", ccgen_cmd))
+
+    # Amazon Auth (Leviatan API)
+    app.add_handler(CommandHandler("amz", amz_check_cmd))
+    app.add_handler(CommandHandler("setcookies", setcookies_cmd))
+    app.add_handler(CommandHandler("cookies", cookies_status_cmd))
+    app.add_handler(CommandHandler("clearcookies", clearcookies_cmd))
 
     # Start inline button callbacks
     app.add_handler(CallbackQueryHandler(
@@ -246,6 +266,18 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel_proxy_add)],
     )
     app.add_handler(proxy_conv)
+
+    # Mass Amazon check conversation: /massamz → wait for file → process
+    mass_amz_conv = ConversationHandler(
+        entry_points=[CommandHandler("massamz", massamz_check_cmd)],
+        states={
+            WAITING_FOR_AMZ_FILE: [
+                MessageHandler(filters.Document.TXT, receive_amz_card_file),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_massamz)],
+    )
+    app.add_handler(mass_amz_conv)
 
     # Global error handler (catches ALL unhandled exceptions)
     app.add_error_handler(error_handler.handle_error)
