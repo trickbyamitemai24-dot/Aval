@@ -29,7 +29,6 @@ class BinLookup:
         # Load APIs from config if available
         config_apis = self.config.get("bin_lookup", {}).get("apis")
         self.apis = config_apis if config_apis else DEFAULT_BIN_APIS
-        self.api_url = api_url
         self._mem_cache: dict[str, dict] = {}
         self._session: Optional[aiohttp.ClientSession] = None
         self._ensure_table()

@@ -1,0 +1,18 @@
+2026-07-25 12:23:13 | INFO     | __main__ | ==================================================
+2026-07-25 12:23:13 | INFO     | __main__ |   AURORA CHECKER — Starting up...
+2026-07-25 12:23:13 | INFO     | __main__ | ==================================================
+2026-07-25 12:23:13 | INFO     | core.database | Database initialized at data/aurora.db (WAL mode)
+2026-07-25 12:23:13 | INFO     | core.loader | Loaded 7276 unique URLs from working.txt
+2026-07-25 12:23:13 | INFO     | core.loader | Loaded 282 unique URLs from 5$.txt
+2026-07-25 12:23:13 | INFO     | core.loader | Loaded 336 unique URLs from 10$.txt
+2026-07-25 12:23:13 | INFO     | __main__ | Loaded stores: all=7276, $5=282, $10=336
+Traceback (most recent call last):
+  File "/data/data/com.termux/files/home/shopify/aurora-checker/bot.py", line 328, in <module>
+    main()
+    ~~~~^^
+  File "/data/data/com.termux/files/home/shopify/aurora-checker/bot.py", line 160, in main
+    bin_lookup = BinLookup(conn, config)
+  File "/data/data/com.termux/files/home/shopify/aurora-checker/core/bin_lookup.py", line 32, in __init__
+    self.api_url = api_url
+                   ^^^^^^^
+NameError: name 'api_url' is not defined
