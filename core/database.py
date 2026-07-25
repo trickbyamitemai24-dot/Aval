@@ -49,19 +49,24 @@ CREATE TABLE IF NOT EXISTS user_proxies (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
-CREATE TABLE IF NOT EXISTS check_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    check_type TEXT NOT NULL,
-    cards_total INTEGER,
-    cards_live INTEGER DEFAULT 0,
-    cards_dead INTEGER DEFAULT 0,
-    cards_charged INTEGER DEFAULT 0,
-    price_range TEXT,
-    duration_seconds REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
+        CREATE TABLE IF NOT EXISTS check_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            check_type TEXT,
+            cards_total INTEGER,
+            live INTEGER,
+            dead INTEGER,
+            charged INTEGER,
+            price_range TEXT,
+            duration REAL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS card_spam_cache (
+            user_id INTEGER,
+            card_number TEXT,
+            timestamp INTEGER,
+            PRIMARY KEY (user_id, card_number)
+        );
 
 CREATE TABLE IF NOT EXISTS mass_check_state (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,12 +180,20 @@ def is_banned(conn: sqlite3.Connection, user_id: int) -> bool:
 
 def increment_check_stats(conn: sqlite3.Connection, user_id: int,
                           status: str, amount: int = 1):
-    """Increment user's check statistics."""
-    col = f"total_{status}" if status in ("charged", "live", "dead") else "total_checks"
-    conn.execute(
-        f"UPDATE users SET {col} = {col} + ?, total_checks = total_checks + ? WHERE user_id = ?",
-        (amount, amount, user_id),
-    )
+    """Increment user's check statistics safely."""
+    queries = {
+        "charged": "UPDATE users SET total_charged = total_charged + ?, total_checks = total_checks + ? WHERE user_id = ?",
+        "live": "UPDATE users SET total_live = total_live + ?, total_checks = total_checks + ? WHERE user_id = ?",
+        "dead": "UPDATE users SET total_dead = total_dead + ?, total_checks = total_checks + ? WHERE user_id = ?",
+        "checks": "UPDATE users SET total_checks = total_checks + ? WHERE user_id = ?",
+    }
+    query = queries.get(status, queries["checks"])
+    
+    if status == "checks":
+        conn.execute(query, (amount, user_id))
+    else:
+        conn.execute(query, (amount, amount, user_id))
+        
     conn.commit()
 
 

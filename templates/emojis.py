@@ -1,4 +1,6 @@
-"""God-level premium Telegram emoji IDs from premium_structure.md."""
+import re
+
+# God-level premium Telegram emoji IDs from premium_structure.md.
 
 EMOJI_IDS = {
     "lightning":    "5445388803223091254",
@@ -36,6 +38,11 @@ EMOJI_IDS = {
     "warning_alt":  "5447381715293074599",  # ⚠️ (alt)
 }
 
+TG_EMOJI_RE = re.compile(r'<tg-emoji\s+emoji-id="\d+">(.*?)</tg-emoji>', re.S)
+
+def strip_tg_emoji(s: str) -> str:
+    """Remove custom emoji tags, keep fallback emoji. Use for button labels."""
+    return TG_EMOJI_RE.sub(r'\1', s or '')
 
 def emoji(name: str, fallback: str = "") -> str:
     eid = EMOJI_IDS.get(name)

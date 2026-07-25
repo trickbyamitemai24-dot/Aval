@@ -9,7 +9,7 @@ Supports:
 """
 
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from core.card_parser import luhn_valid
@@ -100,7 +100,7 @@ def generate_number(bin_prefix: str, length: Optional[int] = None) -> str:
 
     # Safety: ensure Luhn validity (should always pass)
     if not luhn_valid(number):
-        return generate_number(bin_prefix, length)
+        raise RuntimeError("Failed to generate a Luhn-valid number")
     return number
 
 
@@ -118,7 +118,7 @@ def generate_expiry(fixed_month: Optional[str] = None,
             y = "20" + y
         return m, y
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     # 1 to 6 years ahead
     year = now.year + random.randint(1, 6)
     month = random.randint(1, 12)

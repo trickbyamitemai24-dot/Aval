@@ -2,6 +2,7 @@
 
 import os
 import logging
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -14,6 +15,8 @@ class StoreLoader:
     def __init__(self, sites_dir: str = "sites"):
         self.sites_dir = Path(sites_dir)
         self._cache: dict[str, list[str]] = {}
+        self._cache_with_source: Optional[list[tuple[str, str]]] = None
+        self._lock = threading.Lock()
 
     def _load_file(self, filename: str) -> list[str]:
         """Load URLs from a single file. Returns deduplicated, normalized list."""
@@ -59,29 +62,30 @@ class StoreLoader:
         Returns:
             List of store URLs
         """
-        if price_range in self._cache:
-            return self._cache[price_range]
+        with self._lock:
+            if price_range in self._cache:
+                return self._cache[price_range]
 
-        if price_range == "5":
-            urls = self._load_file("5$.txt")
-        elif price_range == "10":
-            urls = self._load_file("10$.txt")
-        elif price_range == "all":
-            urls = self._load_file("working.txt")
-        elif price_range == "hq":
-            urls = self._load_file("hq.txt")
-        elif price_range == "v40":
-            urls = self._load_file("v40.txt")
-        elif price_range == "sureship":
-            urls = self._load_file("sureship.txt")
-        elif price_range == "all_combined":
-            urls = self._load_all_combined()
-        else:
-            # Treat as filename
-            urls = self._load_file(price_range)
+            if price_range == "5":
+                urls = self._load_file("5$.txt")
+            elif price_range == "10":
+                urls = self._load_file("10$.txt")
+            elif price_range == "all":
+                urls = self._load_file("working.txt")
+            elif price_range == "hq":
+                urls = self._load_file("hq.txt")
+            elif price_range == "v40":
+                urls = self._load_file("v40.txt")
+            elif price_range == "sureship":
+                urls = self._load_file("sureship.txt")
+            elif price_range == "all_combined":
+                urls = self._load_all_combined()
+            else:
+                # Treat as filename
+                urls = self._load_file(price_range)
 
-        self._cache[price_range] = urls
-        return urls
+            self._cache[price_range] = urls
+            return urls
 
     def get_counts(self) -> dict[str, int]:
         """Get store count for each price range (for inline buttons)."""
@@ -97,41 +101,51 @@ class StoreLoader:
 
     def reload(self):
         """Clear cache and reload all files."""
-        self._cache.clear()
+        with self._lock:
+            self._cache.clear()
+            self._cache_with_source = None
         logger.info("Store cache cleared")
 
     def remove_store(self, url: str, filename: str = "working.txt") -> bool:
-        """Remove a store URL from a site file. Returns True if removed."""
+        """Remove a store URL from a site file safely. Returns True if removed."""
         filepath = self.sites_dir / filename
         if not filepath.exists():
             return False
         url_clean = url.rstrip("/")
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-            removed = False
-            with open(filepath, "w", encoding="utf-8") as f:
-                for line in lines:
-                    if line.strip().rstrip("/") == url_clean:
-                        removed = True
-                        continue
-                    f.write(line)
-            if removed:
-                self._cache.clear()
-                logger.info("Removed %s from %s", url_clean, filename)
-            return removed
-        except Exception as e:
-            logger.error("Failed to remove %s from %s: %s", url_clean, filename, e)
-            return False
+        
+        with self._lock:
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                removed = False
+                with open(filepath, "w", encoding="utf-8") as f:
+                    for line in lines:
+                        if line.strip().rstrip("/") == url_clean:
+                            removed = True
+                            continue
+                        f.write(line)
+                if removed:
+                    self._cache.clear()
+                    self._cache_with_source = None
+                    logger.info("Removed %s from %s", url_clean, filename)
+                return removed
+            except Exception as e:
+                logger.error("Failed to remove %s from %s: %s", url_clean, filename, e)
+                return False
 
     def get_all_stores_with_source(self) -> list[tuple[str, str]]:
         """Get all stores with their source filename. Returns [(url, filename), ...]."""
-        result = []
-        for fname in ["5$.txt", "10$.txt", "20$.txt", "30$.txt", "40$.txt", "50$site.txt", "working.txt", "hq.txt", "v40.txt", "sureship.txt"]:
-            stores = self._load_file(fname)
-            for url in stores:
-                result.append((url, fname))
-        return result
+        with self._lock:
+            if self._cache_with_source is not None:
+                return self._cache_with_source
+
+            result = []
+            for fname in ["5$.txt", "10$.txt", "20$.txt", "30$.txt", "40$.txt", "50$site.txt", "working.txt", "hq.txt", "v40.txt", "sureship.txt"]:
+                stores = self._load_file(fname)
+                for url in stores:
+                    result.append((url, fname))
+            self._cache_with_source = result
+            return result
 
 
 def pick_store(stores: list[str], used: set[str]) -> Optional[str]:

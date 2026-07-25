@@ -174,35 +174,35 @@ async def redeem_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(format_key_error(), parse_mode=ParseMode.HTML)
 
 
-def _send_redeem_result(update, ctx, result: RedemptionResult, conn):
+async def _send_redeem_result(update: Update, ctx: ContextTypes.DEFAULT_TYPE, result: RedemptionResult, conn):
     """Send the appropriate redemption result message."""
-    # Note: This is called from an async context but is itself sync.
-    # We return the coroutine for the caller to await.
     if result.success:
+        duration_row = conn.execute(
+            "SELECT duration_days FROM batch_keys WHERE key = ?",
+            (result.key,),
+        ).fetchone()
+        duration = duration_row["duration_days"] if duration_row else 0
         text = format_batch_redeem_success(
             tier=result.tier,
-            duration=conn.execute(
-                "SELECT duration_days FROM batch_keys WHERE key = ?",
-                (result.key,),
-            ).fetchone()["duration_days"],
+            duration=duration,
             expires_str=result.expires_at,
             key=result.key,
             position=result.position,
             card_limit=result.card_limit,
         )
         logger.info("User %d redeemed key %s (%s)", update.effective_user.id, result.key, result.position)
-        return update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
     else:
         if "not found" in result.message.lower():
-            return update.message.reply_text(
+            await update.message.reply_text(
                 format_key_not_found(), parse_mode=ParseMode.HTML,
             )
         elif "already" in result.message.lower():
-            return update.message.reply_text(
+            await update.message.reply_text(
                 format_key_already_redeemed(), parse_mode=ParseMode.HTML,
             )
         else:
-            return update.message.reply_text(
+            await update.message.reply_text(
                 format_error(result.message), parse_mode=ParseMode.HTML,
             )
 

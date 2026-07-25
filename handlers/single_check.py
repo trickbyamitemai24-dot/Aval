@@ -77,6 +77,7 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Card repeat detection (same card in 5 min)
     if rate_limiter.is_card_repeat(user.id, card.number, window=300):
+        rate_limiter.refund_hourly(user.id)
         await update.message.reply_text(format_error("You already checked this card recently."))
         return
 
@@ -92,20 +93,40 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         stores = ctx.bot_data.get("stores_all", [])
     if not stores:
+        rate_limiter.refund_hourly(user.id)
         await checking_msg.edit_text(format_error("No stores available."))
         return
 
     used = set()
-    store = pick_store(stores, used)
-    if not store:
-        await checking_msg.edit_text(format_error("No stores available."))
-        return
-
-    # Run check (with proxy if user has any)
     pm = ctx.bot_data.get("proxy_manager")
-    proxy = pm.get_proxy(user.id) if pm else None
+    
+    # Retry up to 3 stores if there's a store-level error (not a card error)
+    max_store_retries = 3
+    result = None
+    store = None
+    
+    for attempt in range(max_store_retries):
+        store = pick_store(stores, used)
+        if not store:
+            break
+        used.add(store)
+        
+        proxy = pm.get_proxy(user.id) if pm else None
+        result = await shopify_check(card, store, proxy=proxy, timeout=30)
+        
+        # If it's a structural store error, retry. If it's a real card decline/charge, break.
+        error_keywords = (
+            "no_products_found", "session_init_failed", "timeout", "dns_error",
+            "ssl_error", "connection_error", "checkout_start_failed",
+            "token_extraction_failed", "cart_failed", "proxy_error"
+        )
+        if not any(kw in result.message for kw in error_keywords):
+            break  # Got a definitive card response
 
-    result = await shopify_check(card, store, proxy=proxy, timeout=30)
+    if not result:
+        await checking_msg.edit_text(format_error("No working stores available right now."))
+        rate_limiter.refund_hourly(user.id)
+        return
 
     # BIN lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]
@@ -208,6 +229,20 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(format_error("Card is expired."), parse_mode=ParseMode.HTML)
         return
 
+    # Rate limit: hourly check limit
+    from core.tier_manager import get_user_tier
+    tier = get_user_tier(conn, user.id)
+    hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, 1)
+    if not hourly_ok:
+        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
+        return
+
+    # Card repeat detection
+    if rate_limiter.is_card_repeat(user.id, card.number, window=300):
+        rate_limiter.refund_hourly(user.id)
+        await update.message.reply_text(format_error("You already checked this card recently."))
+        return
+
     # Send "checking..." message
     checking_msg = await update.message.reply_text(
         format_checking(card), parse_mode=ParseMode.HTML
@@ -220,6 +255,9 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Run Stripe check
     stripe_sk = ctx.bot_data["config"].get("stripe", {}).get("secret_key", "")
     result = await stripe_check(card, proxy=proxy, timeout=15, secret_key=stripe_sk)
+
+    if result.status == "ERROR" and ("network" in result.message.lower() or "configured" in result.message.lower()):
+        rate_limiter.refund_hourly(user.id)
 
     # BIN lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]

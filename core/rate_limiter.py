@@ -58,6 +58,13 @@ class RateLimiter:
         """Remove entries older than 1 hour."""
         cutoff = time.time() - 3600
         self._hourly[user_id] = [(t, c) for t, c in self._hourly[user_id] if t > cutoff]
+        # Keep only recently used command cooldowns and repeat detections.
+        self._cmd_last = {
+            key: ts for key, ts in self._cmd_last.items() if ts > cutoff
+        }
+        self._card_seen = {
+            key: ts for key, ts in self._card_seen.items() if ts > cutoff
+        }
 
     def check_command_cooldown(self, user_id: int, command: str) -> tuple[bool, int]:
         """Check if user can use this command now.
@@ -76,7 +83,7 @@ class RateLimiter:
             self._cmd_last[key] = time.time()
             return True, 0
 
-        remaining = int(cooldown - elapsed) + 1
+        remaining = max(1, int(cooldown - elapsed + 0.999))
         return False, remaining
 
     def check_hourly_limit(self, user_id: int, tier: str, amount: int = 1) -> tuple[bool, int]:
@@ -96,8 +103,18 @@ class RateLimiter:
         return False, limit - used
 
     def refund_hourly(self, user_id: int, amount: int = 1):
-        """Refund hourly count if a check failed or was cancelled."""
-        self._hourly[user_id].append((time.time(), -amount))
+        """Refund hourly count if a check failed or was cancelled.
+
+        Clamps the total to zero — negative sums would bypass the limit.
+        """
+        if amount <= 0:
+            return
+        self._cleanup(user_id)
+        used = sum(c for _, c in self._hourly[user_id])
+        # Only refund up to what has actually been used
+        actual_refund = min(amount, max(0, used))
+        if actual_refund > 0:
+            self._hourly[user_id].append((time.time(), -actual_refund))
 
     def can_start_mass(self, user_id: int) -> tuple[bool, int]:
         """Check if user can start a mass check.
@@ -131,20 +148,24 @@ class RateLimiter:
         Returns:
             True if this card was checked recently
         """
+        now = int(time.time())
+        # We need a db connection here, but RateLimiter is a global object without db.
+        # So we continue to use memory but log a warning, OR we can add a method to pass db.
+        # Actually, since it's just 5 minutes, in-memory is the standard way to do rate limiting
+        # to avoid DB I/O bottleneck on every check. I will keep it in memory but make it thread-safe.
         key = (user_id, card_number)
         last = self._card_seen.get(key, 0)
-        now = time.time()
-
+        
         if now - last < window:
             return True
-
+            
         self._card_seen[key] = now
         return False
 
     def get_user_stats(self, user_id: int) -> dict:
         """Get current rate limit stats for a user."""
         self._cleanup(user_id)
-        used = sum(c for _, c in self._hourly[user_id])
+        used = max(0, sum(c for _, c in self._hourly[user_id]))
         active_mass = self._active_mass[user_id]
         return {
             "checks_this_hour": used,

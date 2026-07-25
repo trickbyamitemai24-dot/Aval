@@ -18,6 +18,7 @@ from templates.messages import format_error, format_banned
 from templates.emojis import (
     e_lightning, e_check_done, e_cross, e_gem, e_chart, e_heart,
     e_clipboard, e_mailbox, e_warning, e_smile, e_calendar, e_card,
+    strip_tg_emoji
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ def admin_only(func):
         config = ctx.bot_data["config"]
         if not is_admin(user.id, config):
             await update.message.reply_text(
-                "{e_cross()} Admin access required.", parse_mode=ParseMode.HTML,
+                f"{e_cross()} Admin access required.", parse_mode=ParseMode.HTML,
             )
             return
         return await func(update, ctx)
@@ -51,17 +52,11 @@ def owner_only(func):
         config = ctx.bot_data["config"]
         if not is_owner(user.id, config):
             await update.message.reply_text(
-                "{e_cross()} Owner access required.", parse_mode=ParseMode.HTML,
+                f"{e_cross()} Owner access required.", parse_mode=ParseMode.HTML,
             )
             return
         return await func(update, ctx)
     return wrapper
-
-
-@admin_only
-async def genkey_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Placeholder — /genkey is handled by key_handler.py."""
-    await update.message.reply_text("Use /genkey (key system v2).")
 
 
 @admin_only
@@ -110,7 +105,7 @@ async def keys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def revoke_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /revoke <key> — mark a batch key as revoked."""
     if not ctx.args:
-        await update.message.reply_text("{e_cross()} Usage: /revoke &lt;key&gt;", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"{e_cross()} Usage: /revoke &lt;key&gt;", parse_mode=ParseMode.HTML)
         return
 
     key = ctx.args[0].upper().strip()
@@ -126,7 +121,7 @@ async def revoke_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"{e_check_done()} Key revoked: <code>{key}</code>", parse_mode=ParseMode.HTML)
         logger.info("Admin %d revoked key: %s", update.effective_user.id, key)
     else:
-        await update.message.reply_text("{e_cross()} Key not found or already redeemed/revoked.")
+        await update.message.reply_text(f"{e_cross()} Key not found or already redeemed/revoked.")
 
 
 @admin_only
@@ -189,20 +184,20 @@ async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def user_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /user <id> — view user info."""
     if not ctx.args:
-        await update.message.reply_text("{e_cross()} Usage: /user &lt;id&gt;", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"{e_cross()} Usage: /user &lt;id&gt;", parse_mode=ParseMode.HTML)
         return
 
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("{e_cross()} Invalid user ID.")
+        await update.message.reply_text(f"{e_cross()} Invalid user ID.")
         return
 
     conn = ctx.bot_data["db"]
     user = conn.execute("SELECT * FROM users WHERE user_id = ?", (target_id,)).fetchone()
 
     if not user:
-        await update.message.reply_text("{e_cross()} User not found.")
+        await update.message.reply_text(f"{e_cross()} User not found.")
         return
 
     banned = "Yes" if user["banned"] else "No"
@@ -234,14 +229,14 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /ban <id> [reason] — ban a user."""
     if not ctx.args:
         await update.message.reply_text(
-            "{e_cross()} Usage: /ban &lt;id&gt; [reason]", parse_mode=ParseMode.HTML,
+            f"{e_cross()} Usage: /ban &lt;id&gt; [reason]", parse_mode=ParseMode.HTML,
         )
         return
 
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("{e_cross()} Invalid user ID.")
+        await update.message.reply_text(f"{e_cross()} Invalid user ID.")
         return
 
     reason = " ".join(ctx.args[1:]) if len(ctx.args) > 1 else "No reason provided"
@@ -250,7 +245,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Don't ban owner
     config = ctx.bot_data["config"]
     if target_id == config["bot"]["owner_id"]:
-        await update.message.reply_text("{e_cross()} Cannot ban the owner.")
+        await update.message.reply_text(f"{e_cross()} Cannot ban the owner.")
         return
 
     conn.execute(
@@ -270,13 +265,13 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /unban <id> — unban a user."""
     if not ctx.args:
-        await update.message.reply_text("{e_cross()} Usage: /unban &lt;id&gt;", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"{e_cross()} Usage: /unban &lt;id&gt;", parse_mode=ParseMode.HTML)
         return
 
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("{e_cross()} Invalid user ID.")
+        await update.message.reply_text(f"{e_cross()} Invalid user ID.")
         return
 
     conn = ctx.bot_data["db"]
@@ -293,7 +288,7 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def broadcast_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /broadcast <msg> — broadcast to all users."""
     if not ctx.args:
-        await update.message.reply_text("{e_cross()} Usage: /broadcast &lt;message&gt;", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"{e_cross()} Usage: /broadcast &lt;message&gt;", parse_mode=ParseMode.HTML)
         return
 
     message = " ".join(ctx.args)
@@ -347,7 +342,7 @@ async def settier_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /settier <id> <tier> <days> — manually set user tier."""
     if len(ctx.args) < 3:
         await update.message.reply_text(
-            "{e_cross()} Usage: /settier &lt;id&gt; &lt;tier&gt; &lt;days&gt;\n"
+            f"{e_cross()} Usage: /settier &lt;id&gt; &lt;tier&gt; &lt;days&gt;\n"
             "Example: /settier 123456789 ULTRA 30",
             parse_mode=ParseMode.HTML,
         )
@@ -356,7 +351,7 @@ async def settier_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         target_id = int(ctx.args[0])
     except ValueError:
-        await update.message.reply_text("{e_cross()} Invalid user ID.")
+        await update.message.reply_text(f"{e_cross()} Invalid user ID.")
         return
 
     tier = ctx.args[1].upper()
@@ -369,7 +364,7 @@ async def settier_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         days = int(ctx.args[2])
     except ValueError:
-        await update.message.reply_text("{e_cross()} Days must be a number.")
+        await update.message.reply_text(f"{e_cross()} Days must be a number.")
         return
 
     conn = ctx.bot_data["db"]
@@ -466,7 +461,7 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     config = ctx.bot_data["config"]
 
     if not is_owner(user.id, config):
-        await update.message.reply_text("{e_cross()} Owner access required.")
+        await update.message.reply_text(f"{e_cross()} Owner access required.")
         return
 
     # Parse card from args or reply
@@ -664,10 +659,10 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton(
-                f"{e_check_done()} Delete {len(bad_stores)} bad stores",
+                strip_tg_emoji(f"{e_check_done()} Delete {len(bad_stores)} bad stores"),
                 callback_data="delete_bad_stores",
             ),
-            InlineKeyboardButton("{e_cross()} Cancel", callback_data="cancel_deletion"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_cross()} Cancel"), callback_data="cancel_deletion"),
         ]])
         await update.message.reply_text(
             result_text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
@@ -705,7 +700,7 @@ async def handle_deletion_callback(update: Update, ctx: ContextTypes.DEFAULT_TYP
 
     pending = _pending_deletions.get(user.id)
     if not pending:
-        await query.edit_message_text("{e_cross()} Session expired. Run /chk_all_site again.")
+        await query.edit_message_text(f"{e_cross()} Session expired. Run /chk_all_site again.")
         return
 
     bad_stores = pending["bad_stores"]

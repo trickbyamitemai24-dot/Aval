@@ -30,17 +30,36 @@ from templates.messages import (
 
 logger = logging.getLogger(__name__)
 
+MAX_COOKIE_CHARS = 12000
+COOKIE_MARKERS = ("=", "session-id", "session-token", "ubid", "x-main", "at-main")
+
+
+def _clean_cookie_input(raw: str | None) -> str | None:
+    """Strip wrappers and validate cookie-like input."""
+    if not raw:
+        return None
+    cookies = raw.strip()
+    if (cookies.startswith('"') and cookies.endswith('"')) or \
+       (cookies.startswith("'") and cookies.endswith("'")):
+        cookies = cookies[1:-1].strip()
+    if not (20 <= len(cookies) <= MAX_COOKIE_CHARS):
+        return None
+    lowered = cookies.lower()
+    if not any(marker in lowered for marker in COOKIE_MARKERS):
+        return None
+    return cookies
+
 
 async def setcookies_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /setcookies — store Amazon cookies for the user."""
     user = update.effective_user
     conn = ctx.bot_data["db"]
 
-    get_or_create_user(conn, user.id, user.username, user.first_name)
-
     if is_banned(conn, user.id):
         await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
+
+    get_or_create_user(conn, user.id, user.username, user.first_name)
 
     # Rate limit
     allowed, remaining = rate_limiter.check_command_cooldown(user.id, "setcookies")
@@ -55,15 +74,10 @@ async def setcookies_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif update.message.reply_to_message:
         cookies = update.message.reply_to_message.text
 
-    if not cookies or len(cookies.strip()) < 10:
+    cookies = _clean_cookie_input(cookies)
+    if not cookies:
         await update.message.reply_text(format_cookies_usage(), parse_mode=ParseMode.HTML)
         return
-
-    # Strip wrapping quotes if user pasted with quotes
-    cookies = cookies.strip()
-    if (cookies.startswith('"') and cookies.endswith('"')) or \
-       (cookies.startswith("'") and cookies.endswith("'")):
-        cookies = cookies[1:-1]
 
     set_user_cookies(conn, user.id, cookies, provider="amazon")
 
@@ -88,11 +102,11 @@ async def cookies_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     conn = ctx.bot_data["db"]
 
-    get_or_create_user(conn, user.id, user.username, user.first_name)
-
     if is_banned(conn, user.id):
         await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
+
+    get_or_create_user(conn, user.id, user.username, user.first_name)
 
     row = get_user_cookies(conn, user.id, "amazon")
     if not row or not row["cookies"]:
@@ -117,11 +131,11 @@ async def clearcookies_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     conn = ctx.bot_data["db"]
 
-    get_or_create_user(conn, user.id, user.username, user.first_name)
-
     if is_banned(conn, user.id):
         await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
+
+    get_or_create_user(conn, user.id, user.username, user.first_name)
 
     removed = clear_user_cookies(conn, user.id, "amazon")
     await update.message.reply_text(

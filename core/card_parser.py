@@ -42,11 +42,27 @@ def parse_card(raw: str) -> Optional[Card]:
     if not raw:
         return None
 
+    # Strip out non-card content before parsing
+    # Card strings might have leading/trailing garbage
+    # Let's extract the longest run of characters that could be a card
+    
+    # First just clean up internal spaces if using another separator
+    clean_raw = raw
+    if "|" in clean_raw or ":" in clean_raw or "," in clean_raw:
+        # Some people copy cards like "4111 1111 1111 1111 | 12 | 2026 | 123"
+        # We should just let the split handle it, but if they have spaces AND colons,
+        # parts[0] = "4111 1111..." which fails isdigit().
+        pass
+
     # Try each separator
-    for sep in ["|", ":", " ", ","]:
+    for sep in ["|", ":", ",", " "]:
         parts = [p.strip() for p in raw.split(sep)]
         if len(parts) >= 4:
-            number, month, year, cvv = parts[0], parts[1], parts[2], parts[3]
+            # Clean up internal spaces from parts (e.g. "4111 1111" -> "41111111")
+            number = parts[0].replace(" ", "")
+            month = parts[1].replace(" ", "")
+            year = parts[2].replace(" ", "")
+            cvv = parts[3].replace(" ", "")
 
             # Validate number: 12-19 digits
             if not number.isdigit() or not (12 <= len(number) <= 19):

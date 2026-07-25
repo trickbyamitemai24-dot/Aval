@@ -31,7 +31,6 @@ checker:
 proxy:
   check_timeout: 10
   max_per_user: 100
-  validation_url: "https://httpbin.org/ip"
   default_file: "proxy.txt"
 
 stripe:

@@ -69,8 +69,14 @@ async def receive_proxies(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     raw_text = ""
 
     if update.message.document:
+        doc = update.message.document
+        if doc.file_size and doc.file_size > 5 * 1024 * 1024:
+            await update.message.reply_text(
+                format_error("File is too large. Max 5MB allowed."), parse_mode=ParseMode.HTML,
+            )
+            return WAITING_FOR_PROXY
         try:
-            file = await update.message.document.get_file()
+            file = await doc.get_file()
             bytes_content = await file.download_as_bytearray()
             raw_text = bytes_content.decode("utf-8", errors="ignore")
         except Exception as e:

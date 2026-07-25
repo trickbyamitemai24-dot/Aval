@@ -18,6 +18,7 @@ Features:
 import logging
 import asyncio
 import functools
+import json
 import traceback
 import time
 import hashlib
@@ -135,7 +136,7 @@ def classify_error(exc: Exception) -> Severity:
         return Severity.ERROR
 
     # ── JSON errors ──
-    if isinstance(exc, (json.JSONDecodeError if hasattr(__import__('json'), 'JSONDecodeError') else ValueError,)):
+    if isinstance(exc, json.JSONDecodeError):
         return Severity.WARNING
 
     # ── Asyncio errors ──
@@ -146,9 +147,6 @@ def classify_error(exc: Exception) -> Severity:
 
     # ── Default ──
     return Severity.ERROR
-
-
-import json
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -529,41 +527,50 @@ def safe_handler(func):
     """Decorator: catch ALL exceptions in a handler, never crash."""
     @functools.wraps(func)
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        try:
-            return await func(update, ctx, *args, **kwargs)
-        except telegram.error.RetryAfter as e:
-            wait = e.retry_after + 1
-            logger.warning("Telegram rate limit, waiting %ds", wait)
-            await asyncio.sleep(wait)
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
                 return await func(update, ctx, *args, **kwargs)
-            except Exception as e2:
-                logger.error("Failed after rate limit retry: %s", e2)
-        except telegram.error.BadRequest as e:
-            if "message is not modified" in str(e).lower():
-                return None
-            logger.warning("[BAD REQUEST] %s", e)
-        except telegram.error.Forbidden:
-            logger.warning("[FORBIDDEN] Bot blocked by user")
-        except telegram.error.TimedOut:
-            logger.warning("[TIMEOUT] Handler timed out")
-        except asyncio.CancelledError:
-            logger.debug("[CANCELLED] %s", func.__name__)
-        except Exception as e:
-            severity = classify_error(e)
-            logger.error(
-                "[HANDLER ERROR] [%s] %s: %s",
-                severity.value, type(e).__name__, e,
-                exc_info=True,
-            )
-            try:
-                user_msg = get_user_message(e)
-                if user_msg and update and update.effective_message:
-                    await update.effective_message.reply_text(
-                        format_error(user_msg), parse_mode=ParseMode.HTML,
-                    )
-            except Exception as e2:
-                logger.warning("Failed to send error to user: %s", e2)
+            except telegram.error.RetryAfter as e:
+                wait = e.retry_after + 1
+                logger.warning(
+                    "Telegram rate limit (attempt %d/%d), waiting %ds",
+                    attempt + 1, max_retries, wait,
+                )
+                await asyncio.sleep(wait)
+                if attempt == max_retries - 1:
+                    logger.error("Gave up after %d RetryAfter retries", max_retries)
+                continue
+            except telegram.error.BadRequest as e:
+                if "message is not modified" in str(e).lower():
+                    return None
+                logger.warning("[BAD REQUEST] %s", e)
+                break
+            except telegram.error.Forbidden:
+                logger.warning("[FORBIDDEN] Bot blocked by user")
+                break
+            except telegram.error.TimedOut:
+                logger.warning("[TIMEOUT] Handler timed out")
+                break
+            except asyncio.CancelledError:
+                logger.debug("[CANCELLED] %s", func.__name__)
+                break
+            except Exception as e:
+                severity = classify_error(e)
+                logger.error(
+                    "[HANDLER ERROR] [%s] %s: %s",
+                    severity.value, type(e).__name__, e,
+                    exc_info=True,
+                )
+                try:
+                    user_msg = get_user_message(e)
+                    if user_msg and update and update.effective_message:
+                        await update.effective_message.reply_text(
+                            format_error(user_msg), parse_mode=ParseMode.HTML,
+                        )
+                except Exception as e2:
+                    logger.warning("Failed to send error to user: %s", e2)
+                break
         return None
     return wrapper
 
@@ -572,37 +579,45 @@ def safe_callback(func):
     """Decorator: catch ALL exceptions in a callback handler."""
     @functools.wraps(func)
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        try:
-            return await func(update, ctx, *args, **kwargs)
-        except telegram.error.RetryAfter as e:
-            await asyncio.sleep(e.retry_after + 1)
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
                 return await func(update, ctx, *args, **kwargs)
-            except Exception:
-                pass
-        except telegram.error.BadRequest as e:
-            if "message is not modified" in str(e).lower():
-                return None
-            logger.warning("[CALLBACK BAD REQUEST] %s", e)
-        except telegram.error.Forbidden:
-            pass
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            severity = classify_error(e)
-            logger.error(
-                "[CALLBACK ERROR] [%s] %s: %s",
-                severity.value, type(e).__name__, e,
-                exc_info=True,
-            )
-            try:
-                user_msg = get_user_message(e)
-                if user_msg and update.callback_query:
-                    await update.callback_query.answer(
-                        user_msg or "Error occurred", show_alert=True,
-                    )
-            except Exception:
-                pass
+            except telegram.error.RetryAfter as e:
+                wait = e.retry_after + 1
+                logger.warning(
+                    "Telegram rate limit in callback (attempt %d/%d), waiting %ds",
+                    attempt + 1, max_retries, wait,
+                )
+                await asyncio.sleep(wait)
+                if attempt == max_retries - 1:
+                    logger.error("Gave up callback after %d RetryAfter retries", max_retries)
+                continue
+            except telegram.error.BadRequest as e:
+                if "message is not modified" in str(e).lower():
+                    return None
+                logger.warning("[CALLBACK BAD REQUEST] %s", e)
+                break
+            except telegram.error.Forbidden:
+                break
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                severity = classify_error(e)
+                logger.error(
+                    "[CALLBACK ERROR] [%s] %s: %s",
+                    severity.value, type(e).__name__, e,
+                    exc_info=True,
+                )
+                try:
+                    user_msg = get_user_message(e)
+                    if user_msg and update.callback_query:
+                        await update.callback_query.answer(
+                            user_msg or "Error occurred", show_alert=True,
+                        )
+                except Exception:
+                    pass
+                break
         return None
     return wrapper
 

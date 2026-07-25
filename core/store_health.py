@@ -55,7 +55,13 @@ def _record_check_internal(conn: sqlite3.Connection, url: str, success: bool, re
         new_checks = existing["checks"] + 1
         new_successes = existing["successes"] + s
         new_failures = existing["failures"] + f
-        new_avg = (existing["avg_response_ms"] + response_ms) // 2 if existing["avg_response_ms"] else response_ms
+        # Proper cumulative moving average: new_avg = (old_avg * old_n + new_val) / new_n
+        old_avg = existing["avg_response_ms"] or 0
+        old_n = existing["checks"]
+        if response_ms > 0:
+            new_avg = int((old_avg * old_n + response_ms) / new_checks)
+        else:
+            new_avg = old_avg
         new_score = (new_successes / new_checks) * 100 if new_checks > 0 else 50.0
         conn.execute(
             """UPDATE store_health SET checks=?, successes=?, failures=?, avg_response_ms=?, last_check=?, score=? WHERE url=?""",

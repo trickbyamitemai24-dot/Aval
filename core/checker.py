@@ -31,6 +31,21 @@ from core.response_classifier import classify_shopify_response
 
 logger = logging.getLogger(__name__)
 
+# Shared connector for connection pooling (MED-2) + SSL verification (MED-6)
+_shared_connector: Optional[aiohttp.TCPConnector] = None
+
+def _get_shared_connector() -> aiohttp.TCPConnector:
+    global _shared_connector
+    if _shared_connector is None or _shared_connector.closed:
+        import ssl
+        ctx = ssl.create_default_context()
+        _shared_connector = aiohttp.TCPConnector(
+            limit=0,
+            ssl=ctx,
+            resolver=ThreadedResolver()
+        )
+    return _shared_connector
+
 _UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -54,23 +69,30 @@ def _random_address():
     first_names = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "David", "Susan"]
     last_names  = ["Smith", "Jones", "Taylor", "Brown", "Williams", "Wilson", "Johnson", "Davies", "Miller", "Davis"]
     streets     = ["Maple St", "Oak Ave", "Washington Blvd", "Lakeview Dr", "Park Way", "Broadway", "Elm St", "Pine Ave"]
-    cities = [
-        ("Ketchikan", "AK", "99901"), ("Los Angeles", "CA", "90001"),
-        ("New York", "NY", "10001"),  ("Houston", "TX", "77001"),
-        ("Miami", "FL", "33101"),     ("Chicago", "IL", "60601"),
-        ("Phoenix", "AZ", "85001"),   ("Seattle", "WA", "98101"),
+    
+    locations = [
+        # US
+        ("Ketchikan", "AK", "99901", "US"), ("Los Angeles", "CA", "90001", "US"),
+        ("New York", "NY", "10001", "US"),  ("Houston", "TX", "77001", "US"),
+        # UK
+        ("London", "ENG", "W1A 1AA", "GB"), ("Manchester", "ENG", "M1 1AA", "GB"),
+        # Canada
+        ("Toronto", "ON", "M5H 2N2", "CA"), ("Vancouver", "BC", "V6B 1P1", "CA"),
+        # Australia
+        ("Sydney", "BC", "2000", "AU"), ("Melbourne", "BC", "3000", "AU"),
     ]
     fn = random.choice(first_names)
     ln = random.choice(last_names)
-    street = f"{random.randint(100, 9999)} {random.choice(streets)}"
-    city, state, zp = random.choice(cities)
+    city, state, zip_code, country = random.choice(locations)
     return {
-        "firstName": fn, "lastName": ln,
-        "address1": street, "city": city,
-        "zoneCode": state, "postalCode": zp,
-        "countryCode": "US",
-        "phone": f"+1703{random.randint(210, 999)}{random.randint(1000, 9999)}",
-        "company": "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=5)),
+        "firstName": fn,
+        "lastName": ln,
+        "address1": f"{random.randint(100, 9999)} {random.choice(streets)}",
+        "city": city,
+        "zone": state,
+        "country": country,
+        "zip": zip_code,
+        "phone": f"213{random.randint(1000000, 9999999)}"
     }
 
 
@@ -129,7 +151,7 @@ async def _do_shopify_check(
     }
 
     conn_timeout = aiohttp.ClientTimeout(total=timeout)
-    connector = aiohttp.TCPConnector(limit=0, ssl=False, resolver=ThreadedResolver())
+    connector = _get_shared_connector()
     session_kwargs = {"timeout": conn_timeout, "connector": connector}
     if proxy:
         session_kwargs["proxy"] = proxy
@@ -160,9 +182,10 @@ async def _do_shopify_check(
                 return CheckResult("DEAD", "token_extraction_failed", "Shopify Payments", ctx.price, store_url, card)
 
             # Step 6: Vault card
-            vault_id = await _vault_card(session, ctx, card)
+            vault_id, vault_err = await _vault_card(session, ctx, card)
             if not vault_id:
-                return CheckResult("DEAD", "card_vault_failed", "Shopify Payments", ctx.price, store_url, card)
+                msg = f"card_vault_failed: {vault_err}" if vault_err else "card_vault_failed"
+                return CheckResult("DEAD", msg, "Shopify Payments", ctx.price, store_url, card)
 
             # Step 7: Submit for completion
             receipt_id = await _submit_for_completion(session, ctx, card, vault_id)
@@ -257,8 +280,9 @@ async def _init_session(session, ctx: _CheckoutContext) -> bool:
 async def _find_cheapest_product(session, ctx: _CheckoutContext) -> bool:
     """Step 2: Find cheapest available product."""
     try:
+        # Fetch up to 250 products (Shopify limits max to 250)
         async with session.get(
-            f"{ctx.base_url}/products.json",
+            f"{ctx.base_url}/products.json?limit=250",
             headers=ctx.headers,
         ) as r:
             if r.status != 200:
@@ -271,13 +295,19 @@ async def _find_cheapest_product(session, ctx: _CheckoutContext) -> bool:
             min_price = float("inf")
             for p in products:
                 for v in p.get("variants", []):
+                    # Only consider variants that are available (if the field exists)
+                    if v.get("available") is False:
+                        continue
                     try:
-                        price = float(v.get("price", 999999))
+                        price_str = v.get("price")
+                        if price_str is None:
+                            continue
+                        price = float(price_str)
                         if price < min_price and price > 0:
                             min_price = price
                             cheapest = v
                             ctx.product_id = p["id"]
-                    except (ValueError, KeyError):
+                    except (ValueError, KeyError, TypeError):
                         continue
             if cheapest:
                 ctx.variant_id = cheapest["id"]
@@ -446,7 +476,7 @@ async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
         return False
 
 
-async def _vault_card(session, ctx: _CheckoutContext, card: Card) -> Optional[str]:
+async def _vault_card(session, ctx: _CheckoutContext, card: Card):
     """Step 6: Vault card via checkout.pci.shopifyinc.com/sessions."""
     address = ctx.address
     url = "https://checkout.pci.shopifyinc.com/sessions"
@@ -484,20 +514,27 @@ async def _vault_card(session, ctx: _CheckoutContext, card: Card) -> Optional[st
 
     try:
         async with session.post(url, json=payload, headers=headers) as r:
-            if r.status in (200, 201):
+            try:
                 data = await r.json()
+            except Exception:
+                data = {}
+            if r.status in (200, 201):
                 vault_id = data.get("id")
                 if vault_id:
-                    return vault_id
+                    return vault_id, None
                 # 200 but no id — check for error in body
                 error = data.get("error", "")
                 if error:
                     logger.debug("vault_card error: %s", error)
-                return None
-            return None
+                return None, error or "no_vault_id"
+            
+            # Extract 4xx error detail
+            error = data.get("error", "") or data.get("message", "")
+            logger.debug("vault_card rejected (%d): %s", r.status, error)
+            return None, error or f"http_{r.status}"
     except Exception as e:
         logger.debug("vault_card failed: %s", e)
-        return None
+        return None, str(e)
 
 
 _SUBMIT_MUTATION = 'mutation SubmitForCompletion($input:NegotiationInput!,$attemptToken:String!,$metafields:[MetafieldInput!],$postPurchaseInquiryResult:PostPurchaseInquiryResultCode,$analytics:AnalyticsInput){submitForCompletion(input:$input attemptToken:$attemptToken metafields:$metafields postPurchaseInquiryResult:$postPurchaseInquiryResult analytics:$analytics){...on SubmitSuccess{receipt{...ReceiptDetails __typename}__typename}...on SubmitAlreadyAccepted{receipt{...ReceiptDetails __typename}__typename}...on SubmitFailed{reason __typename}...on SubmitRejected{errors{...on NegotiationError{code localizedMessage __typename}...on PendingTermViolation{code localizedMessage nonLocalizedMessage __typename}__typename}__typename}...on Throttled{pollAfter pollUrl queueToken __typename}...on CheckpointDenied{redirectUrl __typename}...on SubmittedForCompletion{receipt{...ReceiptDetails __typename}__typename}__typename}}fragment ReceiptDetails on Receipt{...on ProcessedReceipt{id token __typename}...on ProcessingReceipt{id pollDelay __typename}...on ActionRequiredReceipt{id __typename}...on FailedReceipt{id processingError{...on PaymentFailed{code messageUntranslated __typename}__typename}__typename}__typename}'
@@ -508,6 +545,10 @@ _POLL_QUERY = 'query PollForReceipt($receiptId:ID!,$sessionToken:String!){receip
 async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vault_id: str) -> Optional[str]:
     """Step 7: SubmitForCompletion GraphQL mutation."""
     if not ctx.session_token:
+        return None
+
+    if not ctx.checkout_id:
+        logger.warning("checkout_id is None — cannot build attempt token or checkout headers")
         return None
 
     url = f"{ctx.graphql_base}/checkouts/unstable/graphql"
@@ -528,7 +569,8 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
     address = ctx.address
     attempt_token = f"{ctx.checkout_id}-uaz{''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=9))}"
     card_bin = card.number[:8]
-    buyer_email = f"{address['firstName'].lower()}{random.randint(10, 99)}@gmail.com"
+    domains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"]
+    buyer_email = f"{address['firstName'].lower()}{random.randint(10, 9999)}@{random.choice(domains)}"
     delivery_expectation_lines = [{"signedHandle": sh} for sh in ctx.signed_handles]
     pm_identifier = ctx.payment_method_identifier or vault_id
 
@@ -798,7 +840,7 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
     }
 
     # Create a separate session with long timeout for polling
-    poll_connector = aiohttp.TCPConnector(limit=0, ssl=False, resolver=ThreadedResolver())
+    poll_connector = _get_shared_connector()
     poll_session_kwargs = {
         "timeout": aiohttp.ClientTimeout(total=120),
         "connector": poll_connector,
@@ -938,7 +980,7 @@ async def stripe_check(
         )
 
     conn_timeout = aiohttp.ClientTimeout(total=timeout)
-    connector = aiohttp.TCPConnector(limit=0, ssl=False, resolver=ThreadedResolver())
+    connector = _get_shared_connector()
     session_kwargs = {"timeout": conn_timeout, "connector": connector}
 
     if proxy:

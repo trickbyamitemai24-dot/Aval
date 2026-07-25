@@ -20,9 +20,9 @@ from core.cc_generator import (
     normalize_bin,
 )
 from core.database import is_banned, get_or_create_user
-from core.rate_limiter import rate_limiter, get_cooldown_message
+from core.rate_limiter import rate_limiter, get_cooldown_message, get_hourly_message
 from templates.messages import format_ccgen, format_ccgen_usage, format_error
-from templates.emojis import e_card, e_warning
+from templates.messages import format_banned
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +35,11 @@ async def ccgen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     conn = ctx.bot_data["db"]
 
-    get_or_create_user(conn, user.id, user.username, user.first_name)
-
     if is_banned(conn, user.id):
-        await update.message.reply_text(
-            format_error("You are banned."), parse_mode=ParseMode.HTML,
-        )
+        await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
+
+    get_or_create_user(conn, user.id, user.username, user.first_name)
 
     # Rate limit
     allowed, remaining = rate_limiter.check_command_cooldown(user.id, "ccgen")
@@ -59,8 +57,8 @@ async def ccgen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if len(args) == 1:
         # /ccgen <count>
-        if args[0].isdigit() and 1 <= int(args[0]) <= 1000:
-            count = min(int(args[0]), MAX_GEN)
+        if args[0].isdigit() and 1 <= int(args[0]) <= MAX_GEN:
+            count = int(args[0])
         else:
             await update.message.reply_text(
                 format_ccgen_usage(), parse_mode=ParseMode.HTML,
@@ -75,16 +73,16 @@ async def ccgen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 format_ccgen_usage(), parse_mode=ParseMode.HTML,
             )
             return
-        if args[1].isdigit():
-            count = min(int(args[1]), MAX_GEN)
+        if args[1].isdigit() and 1 <= int(args[1]) <= MAX_GEN:
+            count = int(args[1])
         else:
             await update.message.reply_text(
                 format_ccgen_usage(), parse_mode=ParseMode.HTML,
             )
             return
 
-    elif len(args) == 4:
-        # /ccgen <bin> <month> <year> <count>
+    elif len(args) in (3, 4):
+        # /ccgen <bin> <month> <year> [<count>]
         bin_prefix = normalize_bin(args[0])
         if not bin_prefix:
             await update.message.reply_text(
@@ -112,21 +110,30 @@ async def ccgen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 format_error("Invalid year (use YYYY or YY)."), parse_mode=ParseMode.HTML,
             )
             return
-        if args[3].isdigit():
-            count = min(int(args[3]), MAX_GEN)
-        else:
-            await update.message.reply_text(
-                format_ccgen_usage(), parse_mode=ParseMode.HTML,
-            )
-            return
+            
+        if len(args) == 4:
+            if args[3].isdigit() and 1 <= int(args[3]) <= MAX_GEN:
+                count = int(args[3])
+            else:
+                await update.message.reply_text(
+                    format_ccgen_usage(), parse_mode=ParseMode.HTML,
+                )
+                return
 
-    elif len(args) > 0 and len(args) not in (1, 2, 4):
+    elif len(args) > 0:
         await update.message.reply_text(
             format_ccgen_usage(), parse_mode=ParseMode.HTML,
         )
         return
 
     # ── Generate ──
+    from core.tier_manager import get_user_tier
+    tier = get_user_tier(conn, user.id)
+    hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, count)
+    if not hourly_ok:
+        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
+        return
+
     cards = generate_cards(
         count=count,
         bin_prefix=bin_prefix,
@@ -135,10 +142,14 @@ async def ccgen_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
     if not cards:
+        rate_limiter.refund_hourly(user.id, count)
         await update.message.reply_text(
             format_error("Generation failed. Try a different BIN."), parse_mode=ParseMode.HTML,
         )
         return
+
+    if len(cards) < count:
+        rate_limiter.refund_hourly(user.id, count - len(cards))
 
     # Format and send
     text = format_ccgen(

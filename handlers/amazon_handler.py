@@ -246,6 +246,13 @@ async def receive_amz_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         rate_limiter.cancel_mass(user.id)
         return ConversationHandler.END
 
+    if document.file_size and document.file_size > 5 * 1024 * 1024:
+        await update.message.reply_text(
+            format_error("File is too large. Max 5MB allowed."), parse_mode=ParseMode.HTML,
+        )
+        rate_limiter.cancel_mass(user.id)
+        return ConversationHandler.END
+
     try:
         file = await document.get_file()
         raw_bytes = await file.download_as_bytearray()
@@ -267,8 +274,9 @@ async def receive_amz_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     # Tier limit
-    from core.tier_manager import get_user_config
+    from core.tier_manager import get_user_config, get_user_tier
     tier_config = get_user_config(conn, user.id)
+    tier = get_user_tier(conn, user.id)
     card_limit = tier_config["card_limit"]
     if len(cards) > card_limit:
         cards = cards[:card_limit]
@@ -277,6 +285,14 @@ async def receive_amz_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"Checking first {BOLD(str(card_limit))}.",
             parse_mode=ParseMode.HTML,
         )
+
+    # Hourly limit
+    from core.rate_limiter import get_hourly_message
+    hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, len(cards))
+    if not hourly_ok:
+        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
+        rate_limiter.cancel_mass(user.id)
+        return ConversationHandler.END
 
     # Send initial progress message
     progress_msg = await update.message.reply_text(
@@ -287,20 +303,22 @@ async def receive_amz_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
     # Run the mass check
-    await _run_mass_amazon(
-        cards=cards,
-        cookies=cookies,
-        conn=conn,
-        user_id=user.id,
-        bot=ctx.bot,
-        chat_id=update.effective_chat.id,
-        message_id=progress_msg.message_id,
-        owner_id=ctx.bot_data["config"]["bot"]["owner_id"],
-    )
-
-    # Clean up
-    ctx.user_data.pop("amz_cookies", None)
-    rate_limiter.end_mass(user.id)
+    try:
+        await _run_mass_amazon(
+            cards=cards,
+            cookies=cookies,
+            conn=conn,
+            user_id=user.id,
+            bot=ctx.bot,
+            chat_id=update.effective_chat.id,
+            message_id=progress_msg.message_id,
+            owner_id=ctx.bot_data["config"]["bot"]["owner_id"],
+        )
+    finally:
+        # Clean up
+        ctx.user_data.pop("amz_cookies", None)
+        rate_limiter.end_mass(user.id)
+        
     return ConversationHandler.END
 
 
@@ -376,7 +394,7 @@ async def _run_mass_amazon(cards, cookies, conn, user_id, bot, chat_id,
                 pass
 
         # Early exit: cookies expired — no point continuing
-        if cookie_expired and approved_count == 0 and i == 0:
+        if cookie_expired:
             try:
                 await bot.send_message(
                     chat_id=chat_id,

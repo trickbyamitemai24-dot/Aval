@@ -12,6 +12,7 @@ from templates.messages import format_start, format_banned, format_plans
 from templates.emojis import (
     e_card, e_memo, e_gem, e_clipboard, e_mobile,
     e_check_done, e_warning, e_lightning, e_chart, e_mailbox,
+    strip_tg_emoji
 )
 
 logger = logging.getLogger(__name__)
@@ -21,16 +22,16 @@ def _start_keyboard():
     """Inline keyboard for /start message."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(f"{e_card()} Single Check", callback_data="start_sh"),
-            InlineKeyboardButton(f"{e_memo()} Mass Check", callback_data="start_chk"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_card()} Single Check"), callback_data="start_sh"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_memo()} Mass Check"), callback_data="start_chk"),
         ],
         [
-            InlineKeyboardButton(f"{e_gem()} Plans", callback_data="start_plans"),
-            InlineKeyboardButton(f"{e_gem()} Redeem", callback_data="start_redeem"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_gem()} Plans"), callback_data="start_plans"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_gem()} Redeem"), callback_data="start_redeem"),
         ],
         [
-            InlineKeyboardButton(f"{e_clipboard()} Status", callback_data="start_status"),
-            InlineKeyboardButton(f"{e_mobile()} Proxies", callback_data="start_proxy"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_clipboard()} Status"), callback_data="start_status"),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_mobile()} Proxies"), callback_data="start_proxy"),
         ],
     ])
 
@@ -80,7 +81,7 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data == "start_sh":
         await query.message.reply_text(
-            "{e_card()} Usage: <code>/sh 4798510629051356|12|2028|893</code>\n\n"
+            f"{e_card()} Usage: <code>/sh 4798510629051356|12|2028|893</code>\n\n"
             "Or reply to a card message with <code>/sh</code>",
             parse_mode=ParseMode.HTML,
         )
@@ -93,7 +94,6 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data == "start_plans":
-        from templates.messages import format_plans
         try:
             await query.message.reply_text(
                 format_plans(), parse_mode=ParseMode.HTML,
@@ -103,7 +103,7 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif data == "start_redeem":
         await query.message.reply_text(
-            "{e_gem()} Usage: <code>/redeem AURORA-XXXX-XXXX-XXXX-XXXX</code>\n\n"
+            f"{e_gem()} Usage: <code>/redeem AURORA-XXXX-XXXX-XXXX-XXXX</code>\n\n"
             "Or reply to a key message with <code>/redeem</code>",
             parse_mode=ParseMode.HTML,
         )
@@ -127,7 +127,7 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif data == "start_proxy":
         await query.message.reply_text(
-            "{e_mobile()} Proxy commands:\n\n"
+            f"{e_mobile()} Proxy commands:\n\n"
             "• <code>/addproxy</code> — Add proxies (tested on Shopify)\n"
             "• <code>/proxy</code> — Check &amp; clean dead proxies\n"
             "• <code>/clearproxy</code> — Clear all proxies",
