@@ -19,12 +19,20 @@ def load_config(config_path: str = "config.yaml") -> dict:
     with open(path, "r", encoding="utf-8") as f:
         raw = f.read()
 
-    # Substitute ${ENV_VAR} with env values
+    # Substitute ${ENV_VAR} or ${ENV_VAR:-default} with env values
     def replace_env(match):
         var = match.group(1)
+        default = match.group(3)
+        if default is not None:
+            # Strip quotes if present
+            if default.startswith('"') and default.endswith('"'):
+                default = default[1:-1]
+            elif default.startswith("'") and default.endswith("'"):
+                default = default[1:-1]
+            return os.environ.get(var, default)
         return os.environ.get(var, match.group(0))
 
-    raw = re.sub(r"\$\{(\w+)\}", replace_env, raw)
+    raw = re.sub(r"\$\{(\w+)(:-([^}]+))?\}", replace_env, raw)
 
     config = yaml.safe_load(raw)
     logger.info("Config loaded from %s", path)

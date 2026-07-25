@@ -676,7 +676,6 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         user.id, total, len(good_stores), len(bad_stores),
         len(charged_stores), len(live_stores),
     )
-    rate_limiter.end_mass(user.id)
 
 
 async def handle_deletion_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):

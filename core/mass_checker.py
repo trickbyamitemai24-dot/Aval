@@ -32,48 +32,52 @@ class MassCheckResult:
     duration: float = 0.0
 
 
-def save_state(conn: sqlite3.Connection, user_id: int, chat_id: int,
+class MassCheckState:
+    """State machine for tracking mass check progress in SQLite."""
+    
+    @staticmethod
+    def create(conn: sqlite3.Connection, user_id: int, chat_id: int,
                cards: list[Card], stores: list[str], price_range: str,
-               checked: int, message_id: int = None):
-    """Save mass check state to SQLite for resume."""
-    try:
-        cards_json = json.dumps([c.raw for c in cards])
-        stores_json = json.dumps(stores)
-        conn.execute(
-            """INSERT INTO mass_check_state
-               (user_id, chat_id, message_id, cards_total, cards_checked,
-                cards_json, stores_json, price_range, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running')""",
-            (user_id, chat_id, message_id, len(cards), checked,
-             cards_json, stores_json, price_range),
-        )
-        conn.commit()
-    except Exception as e:
-        logger.warning("Failed to save mass check state: %s", e)
+               checked: int, message_id: int = None) -> int:
+        try:
+            cards_json = json.dumps([c.raw for c in cards])
+            stores_json = json.dumps(stores)
+            cursor = conn.execute(
+                """INSERT INTO mass_check_state
+                   (user_id, chat_id, message_id, cards_total, cards_checked,
+                    cards_json, stores_json, price_range, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running')""",
+                (user_id, chat_id, message_id, len(cards), checked,
+                 cards_json, stores_json, price_range),
+            )
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            logger.warning("Failed to save mass check state: %s", e)
+            return None
 
+    @staticmethod
+    def update(conn: sqlite3.Connection, state_id: int, checked: int):
+        if not state_id: return
+        try:
+            conn.execute("UPDATE mass_check_state SET cards_checked = ? WHERE id = ?", (checked, state_id))
+            conn.commit()
+        except Exception:
+            pass
 
-def update_state(conn: sqlite3.Connection, state_id: int, checked: int):
-    """Update progress on saved state."""
-    try:
-        conn.execute(
-            "UPDATE mass_check_state SET cards_checked = ? WHERE id = ?",
-            (checked, state_id),
-        )
-        conn.commit()
-    except Exception:
-        pass
+    @staticmethod
+    def complete(conn: sqlite3.Connection, state_id: int):
+        if not state_id: return
+        try:
+            conn.execute("UPDATE mass_check_state SET status = 'complete' WHERE id = ?", (state_id,))
+            conn.commit()
+        except Exception:
+            pass
 
-
-def complete_state(conn: sqlite3.Connection, state_id: int):
-    """Mark mass check as complete."""
-    try:
-        conn.execute(
-            "UPDATE mass_check_state SET status = 'complete' WHERE id = ?",
-            (state_id,),
-        )
-        conn.commit()
-    except Exception:
-        pass
+# Backward compatibility wrappers
+def save_state(*args, **kwargs): return MassCheckState.create(*args, **kwargs)
+def update_state(*args, **kwargs): return MassCheckState.update(*args, **kwargs)
+def complete_state(*args, **kwargs): return MassCheckState.complete(*args, **kwargs)
 
 
 def get_pending_state(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:

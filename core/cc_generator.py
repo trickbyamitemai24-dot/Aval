@@ -61,10 +61,11 @@ def _luhn_check_digit(partial: str) -> str:
     reverse = partial[::-1]
     for i, digit in enumerate(reverse):
         d = int(digit)
-        # The check digit sits at index 0 (rightmost); the digit to its
-        # left is at index 1 (doubled), etc. Since we're computing the
-        # check digit, the partial number's rightmost char is index 0
-        # and should NOT be doubled. So double at odd indices.
+        # In a full number, the check digit is at index 0 (not doubled).
+        # The digit immediately to its left is index 1 (doubled).
+        # Since 'partial' is missing the check digit, its rightmost digit
+        # corresponds to index 1 of the full number, and should be doubled.
+        # So we double the even indices (0, 2, 4...) of the *reversed partial*.
         if i % 2 == 0:
             d *= 2
             if d > 9:

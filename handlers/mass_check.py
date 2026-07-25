@@ -460,6 +460,8 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 logger.warning("Failed to forward charged cards to owner: %s", e)
 
     finally:
+        if state_id:
+            complete_state(conn, state_id)
         # Clean up rate limiter
         rate_limiter.end_mass(user.id)
 

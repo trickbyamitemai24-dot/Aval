@@ -225,6 +225,12 @@ async def _do_shopify_check(
 
 class _CheckoutContext:
     """Holds checkout state between steps."""
+    
+    # Default Shopify metadata (overridden dynamically when parsing checkout HTML)
+    DEFAULT_SHOP_ID = "25603230"
+    DEFAULT_BUILD_ID = "4663384ede457d59be87980de7797171b19f2a1b"
+    DEFAULT_PCI_HASH = "a8e4a94"
+
     def __init__(self, base_url, ua, ch_ua, platform, base_headers):
         self.base_url = base_url
         self.ua = ua
@@ -242,14 +248,12 @@ class _CheckoutContext:
         self.stable_id = str(uuid.uuid4())
         self.queue_token = None
         self.payment_method_identifier = None
-        self.shop_id = "25603230"
-        self.build_id = "4663384ede457d59be87980de7797171b19f2a1b"
-        self.pci_build_hash = "a8e4a94"
+        self.shop_id = self.DEFAULT_SHOP_ID
+        self.build_id = self.DEFAULT_BUILD_ID
+        self.pci_build_hash = self.DEFAULT_PCI_HASH
         self.signed_handles = []
         self.graphql_base = None
         self.client_id = str(uuid.uuid4())
-        self.visit_token = str(uuid.uuid4())
-        self.address = _random_address()
         self._proxy = None
 
 
@@ -885,7 +889,7 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
                     continue
 
             except Exception as e:
-                logger.debug("poll_for_receipt attempt %d failed: %s", i, e)
+                logger.debug("poll_for_receipt attempt %d failed: %s", i + 1, e)
             await asyncio.sleep(3)
 
     return ("ERROR", "Polling timed out")

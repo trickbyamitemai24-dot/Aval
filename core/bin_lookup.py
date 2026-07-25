@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 CACHE_TTL = timedelta(hours=720)
 
 # Free BIN lookup APIs (tried in order)
-BIN_APIS = [
+DEFAULT_BIN_APIS = [
     "https://lookup.binlist.net/",           # Free, no key needed
     "https://data.handyapi.com/bin/",         # Free, no key needed
 ]
@@ -22,8 +22,13 @@ BIN_APIS = [
 class BinLookup:
     """BIN lookup with caching. Uses free APIs with SQLite fallback cache."""
 
-    def __init__(self, conn: sqlite3.Connection, api_url: str = ""):
+    def __init__(self, conn: sqlite3.Connection, config: dict = None):
         self.conn = conn
+        self.config = config or {}
+        
+        # Load APIs from config if available
+        config_apis = self.config.get("bin_lookup", {}).get("apis")
+        self.apis = config_apis if config_apis else DEFAULT_BIN_APIS
         self.api_url = api_url
         self._mem_cache: dict[str, dict] = {}
         self._session: Optional[aiohttp.ClientSession] = None
@@ -70,18 +75,28 @@ class BinLookup:
         cached = self.conn.execute(
             "SELECT * FROM bin_cache WHERE bin = ?", (bin_code,)
         ).fetchone()
+        
         if cached:
-            info = {
-                "bin": cached["bin"],
-                "bank": cached["bank"] or "Unknown",
-                "brand": cached["brand"] or "Unknown",
-                "type": cached["type"] or "Unknown",
-                "level": cached["level"] or "Unknown",
-                "country": cached["country"] or "Unknown",
-                "flag": cached["flag"] or "",
-            }
-            self._mem_cache[bin_code] = info
-            return info
+            # Enforce CACHE_TTL
+            cached_at = cached["cached_at"]
+            if cached_at:
+                try:
+                    dt = datetime.fromisoformat(cached_at)
+                    if datetime.utcnow() - dt <= CACHE_TTL:
+                        info = {
+                            "bin": cached["bin"],
+                            "bank": cached["bank"] or "Unknown",
+                            "brand": cached["brand"] or "Unknown",
+                            "type": cached["type"] or "Unknown",
+                            "level": cached["level"] or "Unknown",
+                            "country": cached["country"] or "Unknown",
+                            "flag": cached["flag"] or "",
+                        }
+                        self._mem_cache[bin_code] = info
+                        return info
+                except (ValueError, TypeError):
+                    pass
+            # If expired or missing timestamp, we fetch a fresh one
 
         info = await self._api_lookup(bin_code)
 
@@ -104,7 +119,7 @@ class BinLookup:
             if result:
                 return result
 
-        for api in BIN_APIS:
+        for api in self.apis:
             result = await self._try_api(api, bin_code)
             if result:
                 return result

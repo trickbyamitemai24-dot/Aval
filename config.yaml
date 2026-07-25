@@ -34,7 +34,7 @@ proxy:
   default_file: "proxy.txt"
 
 stripe:
-  secret_key: ${STRIPE_SECRET_KEY}
+  secret_key: ${STRIPE_SECRET_KEY:-""}
 
 bin_lookup:
   api_url: ""

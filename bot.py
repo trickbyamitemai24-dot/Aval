@@ -102,6 +102,11 @@ def start_health_server():
                     self.send_header("Content-Type", "text/plain")
                     self.end_headers()
                     self.wfile.write(b"OK")
+                elif self.path == "/":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"Aurora Checker Bot is running")
                 else:
                     self.send_response(404)
                     self.end_headers()
@@ -152,7 +157,7 @@ def main():
 
     # Init BIN lookup
     bin_api_url = config.get("bin_lookup", {}).get("api_url", "")
-    bin_lookup = BinLookup(conn, bin_api_url)
+    bin_lookup = BinLookup(conn, config)
 
     # Init proxy manager
     proxy_manager = ProxyManager(conn)
