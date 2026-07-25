@@ -22,16 +22,16 @@ def _start_keyboard():
     """Inline keyboard for /start message."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(strip_tg_emoji(f"{e_card()} Single Check"), callback_data="start_sh"),
-            InlineKeyboardButton(strip_tg_emoji(f"{e_memo()} Mass Check"), callback_data="start_chk"),
+            InlineKeyboardButton("💳 Single Check", callback_data="start_sh"),
+            InlineKeyboardButton("📝 Mass Check", callback_data="start_chk"),
         ],
         [
-            InlineKeyboardButton(strip_tg_emoji(f"{e_gem()} Plans"), callback_data="start_plans"),
-            InlineKeyboardButton(strip_tg_emoji(f"{e_gem()} Redeem"), callback_data="start_redeem"),
+            InlineKeyboardButton("💎 Plans", callback_data="start_plans"),
+            InlineKeyboardButton("💎 Redeem", callback_data="start_redeem"),
         ],
         [
-            InlineKeyboardButton(strip_tg_emoji(f"{e_clipboard()} Status"), callback_data="start_status"),
-            InlineKeyboardButton(strip_tg_emoji(f"{e_mobile()} Proxies"), callback_data="start_proxy"),
+            InlineKeyboardButton("📋 Status", callback_data="start_status"),
+            InlineKeyboardButton("📲 Proxies", callback_data="start_proxy"),
         ],
     ])
 

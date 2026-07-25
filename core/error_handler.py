@@ -166,6 +166,11 @@ def get_user_message(exc: Exception) -> str:
             return "Chat not found. Start the bot first with /start"
         if "button_data_invalid" in msg:
             return "Button data expired. Try again."
+        if "can't parse entities" in msg:
+            logger.error("HTML Parse Error: %s", msg)
+            return "Format error: Invalid HTML in message."
+            
+        logger.error("Unhandled BadRequest: %s", msg)
         return "Invalid request. Check your input."
 
     if isinstance(exc, telegram.error.Forbidden):

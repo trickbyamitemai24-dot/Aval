@@ -458,7 +458,7 @@ def format_genkey_usage():
     """Usage for /genkey."""
     return (
         f"{e_cross()} {B('Usage:')}\n"
-        f"{C('/genkey <plan> <quantity> <duration_days>')}\n\n"
+        f"{C('/genkey &lt;plan&gt; &lt;quantity&gt; &lt;duration_days&gt;')}\n\n"
         f"{B('Example')}: {C('/genkey Pro 50 1')}\n\n"
         f"{B('Plans')}: FREE, BASIC, PRO, MAX, ULTRA"
     )
@@ -545,9 +545,9 @@ def format_ccgen_usage():
     return (
         f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n\n"
         f"{C('/ccgen')}                       — 10 random cards\n"
-        f"{C('/ccgen <count>')}               — N random cards\n"
-        f"{C('/ccgen <bin> <count>')}         — N cards with BIN\n"
-        f"{C('/ccgen <bin> <mm> <yyyy> <n>')} — N cards, fixed expiry\n\n"
+        f"{C('/ccgen &lt;count&gt;')}               — N random cards\n"
+        f"{C('/ccgen &lt;bin&gt; &lt;count&gt;')}         — N cards with BIN\n"
+        f"{C('/ccgen &lt;bin&gt; &lt;mm&gt; &lt;yyyy&gt; &lt;n&gt;')} — N cards, fixed expiry\n\n"
         f"{B('ᴇxᴀᴍᴘʟᴇs:')}\n"
         f"{C('/ccgen 25')}\n"
         f"{C('/ccgen 479851 10')}\n"
@@ -562,7 +562,7 @@ def format_amazon_usage():
         f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
         f"{C('/amz 4532640527811643|12|2025|123')}\n\n"
         f"Or reply to a card message with {C('/amz')}\n\n"
-        f"{I('sᴇᴛ ᴄᴏᴏᴋɪᴇs ғɪʀsᴛ:')} {C('/setcookies <your_amazon_cookies>')}"
+        f"{I('sᴇᴛ ᴄᴏᴏᴋɪᴇs ғɪʀsᴛ:')} {C('/setcookies &lt;your_amazon_cookies&gt;')}"
     )
 
 
@@ -572,7 +572,7 @@ def format_massamz_usage():
         f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
         f"Send {C('/massamz')} then upload a .txt file with cards.\n"
         f"One card per line: {C('NUMBER|MM|YYYY|CVV')}\n\n"
-        f"{I('ᴇɴsᴜʀᴇ ʏᴏᴜ ʜᴀᴠᴇ ᴄᴏᴏᴋɪᴇs sᴇᴛ:')} {C('/setcookies <cookies>')}"
+        f"{I('ᴇɴsᴜʀᴇ ʏᴏᴜ ʜᴀᴠᴇ ᴄᴏᴏᴋɪᴇs sᴇᴛ:')} {C('/setcookies &lt;cookies&gt;')}"
     )
 
 
@@ -581,7 +581,7 @@ def format_cookies_saved(set_at):
     return (
         f"{e_check_done()} {B('ᴀᴍᴀᴢᴏɴ ᴄᴏᴏᴋɪᴇs sᴀᴠᴇᴅ!')}\n\n"
         f"{e_calendar()} {B('sᴇᴛ ᴀᴛ')} : {set_at}\n"
-        f"{I('ᴛᴏ ᴜᴘᴅᴀᴛᴇ: /setcookies <new_cookies>')}"
+        f"{I('ᴛᴏ ᴜᴘᴅᴀᴛᴇ: /setcookies &lt;new_cookies&gt;')}"
     )
 
 
@@ -590,7 +590,7 @@ def format_cookies_missing():
     return (
         f"{e_cross()} {B('ɴᴏ ᴀᴍᴀᴢᴏɴ ᴄᴏᴏᴋɪᴇs ғᴏᴜɴᴅ.')}\n\n"
         f"{B('sᴇᴛ ʏᴏᴜʀ ᴄᴏᴏᴋɪᴇs:')}\n"
-        f"{C('/setcookies <your_cookies>')}\n\n"
+        f"{C('/setcookies &lt;your_cookies&gt;')}\n\n"
         f"{I('ɢᴇᴛ ᴄᴏᴏᴋɪᴇs ғʀᴏᴍ ʙʀᴏᴡsᴇʀ ᴅᴇᴠᴛᴏᴏʟs (F12) → ɴᴇᴛᴡᴏʀᴋ → ᴄᴏᴘʏ ᴄᴏᴏᴋɪᴇ ʜᴇᴀᴅᴇʀ')}"
     )
 
@@ -600,7 +600,7 @@ def format_cookies_status(set_at):
     return (
         f"{e_check_done()} {B('ᴄᴏᴏᴋɪᴇs ᴀᴄᴛɪᴠᴇ')}\n\n"
         f"{e_calendar()} {B('sᴇᴛ ᴀᴛ')} : {set_at}\n\n"
-        f"{I('ᴜᴘᴅᴀᴛᴇ: /setcookies <new_cookies>')}\n"
+        f"{I('ᴜᴘᴅᴀᴛᴇ: /setcookies &lt;new_cookies&gt;')}\n"
         f"{I('ᴄʟᴇᴀʀ: /clearcookies')}"
     )
 
@@ -614,7 +614,7 @@ def format_cookies_usage():
     """Usage for /setcookies."""
     return (
         f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
-        f"{C('/setcookies <your_amazon_cookies>')}\n\n"
+        f"{C('/setcookies &lt;your_amazon_cookies&gt;')}\n\n"
         f"{I('ᴄᴏᴏᴋɪᴇs ғʀᴏᴍ ʙʀᴏᴡsᴇʀ ᴅᴇᴠᴛᴏᴏʟs (F12)')}\n"
         f"{I('→ ɴᴇᴛᴡᴏʀᴋ ᴛᴀʙ → ᴀɴʏ ᴀᴍᴀᴢᴏɴ ʀᴇQᴜᴇsᴛ → ᴄᴏᴘʏ ᴄᴏᴏᴋɪᴇ ʜᴇᴀᴅᴇʀ')}"
     )

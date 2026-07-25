@@ -659,10 +659,10 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_check_done()} Delete {len(bad_stores)} bad stores"),
+                f"✅ Delete {len(bad_stores)} bad stores",
                 callback_data="delete_bad_stores",
             ),
-            InlineKeyboardButton(strip_tg_emoji(f"{e_cross()} Cancel"), callback_data="cancel_deletion"),
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_deletion"),
         ]])
         await update.message.reply_text(
             result_text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
