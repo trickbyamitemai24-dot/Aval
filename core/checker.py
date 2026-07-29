@@ -312,7 +312,21 @@ async def _find_cheapest_product(session, ctx: _CheckoutContext) -> bool:
             pass
         return False
 
-    # 1. Try with primary session (with proxy)
+    # 1. Known variant cache for heavily protected stores (bypasses CF scraping entirely)
+    KNOWN_VARIANTS = {
+        "artpop.com": "43093574385834",
+        "colourpop.myshopify.com": "32230107873362",
+    }
+    
+    import urllib.parse
+    netloc = urllib.parse.urlparse(ctx.base_url).netloc.replace("www.", "")
+    if netloc in KNOWN_VARIANTS:
+        ctx.variant_id = KNOWN_VARIANTS[netloc]
+        ctx.price = 10.00
+        logger.debug("Using cached variant %s for %s", ctx.variant_id, netloc)
+        return True
+
+    # 2. Try with primary session (with proxy)
     if await _fetch_and_parse(session) or await _fetch_html_fallback(session):
         return True
 
@@ -384,6 +398,7 @@ async def _add_to_cart(session, ctx: _CheckoutContext) -> bool:
             f"{ctx.base_url}/cart/add.js",
             data=data,
             headers=headers,
+            timeout=aiohttp.ClientTimeout(total=15),
         ) as r:
             if r.status == 200:
                 try:
@@ -420,9 +435,9 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
         # Allow up to 3 JS redirects
         for _ in range(3):
             if method == "POST":
-                r = await session.post(current_url, data=payload, headers=headers, allow_redirects=True)
+                r = await session.post(current_url, data=payload, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15))
             else:
-                r = await session.get(current_url, headers=headers, allow_redirects=True)
+                r = await session.get(current_url, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15))
                 
             ctx.checkout_url = str(r.url)
             html = await r.text()
