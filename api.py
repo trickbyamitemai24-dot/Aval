@@ -38,7 +38,8 @@ async def shopify_handler(request):
             "gateway": result.gateway,
             "price": result.price,
             "store": result.store,
-            "card": card.masked
+            "card": card.masked,
+            "debug_proxy": proxy
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -56,4 +57,31 @@ def create_api_app():
         
     app.router.add_get('/', root_handler)
     app.router.add_get('/health', health_handler)
+    app.router.add_get('/debug', debug_handler)
     return app
+
+async def debug_handler(request):
+    import aiohttp
+    proxy = "http://purevpn0s11127688:4mwmyaoa@px014236.pointtoserver.com:10780"
+    url = "https://artpop.com/products.json?limit=1"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    
+    res = {}
+    
+    # 1. Direct
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(url, headers=headers) as r:
+                res["direct"] = r.status
+    except Exception as e:
+        res["direct"] = str(e)
+        
+    # 2. Proxy
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(url, proxy=proxy, headers=headers) as r:
+                res["proxy"] = r.status
+    except Exception as e:
+        res["proxy"] = str(e)
+        
+    return web.json_response(res)
