@@ -179,7 +179,7 @@ async def _do_shopify_check(
         return CheckResult("DEAD", f"connection_error: {e}", "Shopify Payments", 0.0, store_url, card)
     except Exception as e:
         logger.error("Unexpected error in shopify_check: %s", e, exc_info=True)
-        return CheckResult("DEAD", "unknown_error", "Shopify Payments", 0.0, store_url, card)
+        return CheckResult("DEAD", f"unknown_error: {str(e)}", "Shopify Payments", 0.0, store_url, card)
 
 
 class _CheckoutContext:
