@@ -227,7 +227,7 @@ class _CheckoutContext:
 
 
 async def _init_session(session, ctx: _CheckoutContext) -> bool:
-    """Step 1: Initialize session via /cart.js."""
+    """Step 1: Initialize session via /cart.js or fallback to homepage."""
     try:
         async with session.get(
             f"{ctx.base_url}/cart.js",
@@ -235,7 +235,14 @@ async def _init_session(session, ctx: _CheckoutContext) -> bool:
             timeout=aiohttp.ClientTimeout(total=15),
         ) as r:
             if r.status not in (200, 302):
-                return False
+                # Fallback to homepage to get cookies if cart.js is blocked/headless
+                async with session.get(ctx.base_url, headers=ctx.headers) as r2:
+                    if r2.status not in (200, 202, 301, 302):
+                        return False
+                    ctx.client_id = r2.cookies.get("_shopify_y") or ctx.client_id
+                    ctx.visit_token = r2.cookies.get("_shopify_s") or ctx.visit_token
+                    return True
+
             ctx.client_id = r.cookies.get("_shopify_y") or ctx.client_id
             ctx.visit_token = r.cookies.get("_shopify_s") or ctx.visit_token
             if r.status == 200:
@@ -251,41 +258,54 @@ async def _init_session(session, ctx: _CheckoutContext) -> bool:
 
 
 async def _find_cheapest_product(session, ctx: _CheckoutContext) -> bool:
-    """Step 2: Find cheapest available product."""
+    """Step 2: Find cheapest available product, with HTML fallback for anti-bot."""
     try:
         # Fetch up to 250 products (Shopify limits max to 250)
         async with session.get(
             f"{ctx.base_url}/products.json?limit=250",
             headers=ctx.headers,
         ) as r:
-            if r.status != 200:
-                return False
-            data = await r.json()
-            products = data.get("products", [])
-            if not products:
-                return False
-            cheapest = None
-            min_price = float("inf")
-            for p in products:
-                for v in p.get("variants", []):
-                    # Only consider variants that are available (if the field exists)
-                    if v.get("available") is False:
-                        continue
-                    try:
-                        price_str = v.get("price")
-                        if price_str is None:
-                            continue
-                        price = float(price_str)
-                        if price < min_price and price > 0:
-                            min_price = price
-                            cheapest = v
-                            ctx.product_id = p["id"]
-                    except (ValueError, KeyError, TypeError):
-                        continue
-            if cheapest:
-                ctx.variant_id = cheapest["id"]
-                ctx.price = min_price
-                return True
+            if r.status == 200:
+                data = await r.json()
+                products = data.get("products", [])
+                if products:
+                    cheapest = None
+                    min_price = float("inf")
+                    for p in products:
+                        for v in p.get("variants", []):
+                            if v.get("available") is False:
+                                continue
+                            try:
+                                price_str = v.get("price")
+                                if price_str is None:
+                                    continue
+                                price = float(price_str)
+                                if price < min_price and price > 0:
+                                    min_price = price
+                                    cheapest = v
+                                    ctx.product_id = p["id"]
+                            except (ValueError, KeyError, TypeError):
+                                continue
+                    if cheapest:
+                        ctx.variant_id = cheapest["id"]
+                        ctx.price = min_price
+                        return True
+            
+            # Fallback for 403, 404, 429 (Cloudflare/Rate Limit) or empty products.json
+            logger.debug("products.json failed (status %s), falling back to HTML scraping", r.status)
+            async with session.get(f"{ctx.base_url}/collections/all", headers=ctx.headers) as r2:
+                if r2.status == 200:
+                    html = await r2.text()
+                    # Find a variant ID from HTML
+                    import re
+                    variants = re.findall(r'variant[_-]?id["\']?\s*[:=]\s*["\']?(\d{13,15})["\']?', html, re.IGNORECASE)
+                    if not variants:
+                        variants = re.findall(r'variant(?:s)?[^\w]*?id[^\d]*?(\d{13,15})', html, re.IGNORECASE)
+                    if variants:
+                        ctx.variant_id = variants[0]
+                        ctx.price = 10.00  # Placeholder, actual price fetched in checkout
+                        return True
+                        
             return False
     except Exception as e:
         logger.debug("find_cheapest_product failed for %s: %s", ctx.base_url, e)
