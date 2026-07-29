@@ -316,14 +316,55 @@ async def _find_cheapest_product(session, ctx: _CheckoutContext) -> bool:
     if await _fetch_and_parse(session) or await _fetch_html_fallback(session):
         return True
 
-    # 2. Proxy blocked (429/403) -> Try direct connection without proxy
-    logger.debug("products.json blocked on proxy, falling back to direct connection")
-    try:
-        async with aiohttp.ClientSession() as direct_session:
-            if await _fetch_and_parse(direct_session) or await _fetch_html_fallback(direct_session):
-                return True
-    except Exception as e:
-        logger.debug("direct product fetch failed: %s", e)
+    # 2. Proxy blocked (429/403) -> Try direct connection using requests (bypasses some CF TLS bans)
+    logger.debug("products.json blocked on proxy, falling back to direct connection via requests")
+    import asyncio
+    import requests
+    def _fetch_requests():
+        try:
+            r = requests.get(f"{ctx.base_url}/products.json?limit=250", headers={"User-Agent": ctx.headers.get("User-Agent")}, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                products = data.get("products", [])
+                if products:
+                    cheapest = None
+                    min_price = float("inf")
+                    for p in products:
+                        for v in p.get("variants", []):
+                            if v.get("available") is False:
+                                continue
+                            try:
+                                price_str = v.get("price")
+                                if price_str is None:
+                                    continue
+                                price = float(price_str)
+                                if price < min_price and price > 0:
+                                    min_price = price
+                                    cheapest = v
+                                    ctx.product_id = p["id"]
+                            except (ValueError, KeyError, TypeError):
+                                continue
+                    if cheapest:
+                        return True, cheapest["id"], min_price
+            
+            r2 = requests.get(f"{ctx.base_url}/collections/all", headers={"User-Agent": ctx.headers.get("User-Agent")}, timeout=10)
+            if r2.status_code == 200:
+                import re
+                html = r2.text
+                variants = re.findall(r'variant[_-]?id["\']?\s*[:=]\s*["\']?(\d{13,15})["\']?', html, re.IGNORECASE)
+                if not variants:
+                    variants = re.findall(r'variant(?:s)?[^\w]*?id[^\d]*?(\d{13,15})', html, re.IGNORECASE)
+                if variants:
+                    return True, variants[0], 10.00
+        except Exception as e:
+            logger.debug("requests fallback failed: %s", e)
+        return False, None, 0.0
+
+    success, v_id, price = await asyncio.to_thread(_fetch_requests)
+    if success:
+        ctx.variant_id = v_id
+        ctx.price = price
+        return True
 
     return False
 
