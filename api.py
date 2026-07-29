@@ -62,29 +62,22 @@ def create_api_app():
 
 async def debug_handler(request):
     import requests
-    import aiohttp
+    import asyncio
     
     url = "https://artpop.com/products.json?limit=1"
     browser_ua = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"}
     
     res = {}
     
-    try: res["requests_default"] = requests.get(url, timeout=5).status_code
-    except Exception as e: res["requests_default"] = str(e)
-    
-    try: res["requests_browser"] = requests.get(url, headers=browser_ua, timeout=5).status_code
-    except Exception as e: res["requests_browser"] = str(e)
-    
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(url, timeout=5) as r:
-                res["aiohttp_default"] = r.status
-    except Exception as e: res["aiohttp_default"] = str(e)
-    
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(url, headers=browser_ua, timeout=5) as r:
-                res["aiohttp_browser"] = r.status
-    except Exception as e: res["aiohttp_browser"] = str(e)
+    def fetch1():
+        try: return requests.get(url, timeout=5).status_code
+        except Exception as e: return str(e)
+        
+    def fetch2():
+        try: return requests.get(url, headers=browser_ua, timeout=5).status_code
+        except Exception as e: return str(e)
+        
+    res["requests_default"] = await asyncio.to_thread(fetch1)
+    res["requests_browser"] = await asyncio.to_thread(fetch2)
     
     return web.json_response(res)
