@@ -90,37 +90,34 @@ from handlers.proxy_handler import (
 logger = logging.getLogger(__name__)
 
 
+from api import create_api_app
+from aiohttp import web
+import asyncio
+
 def start_health_server():
-    """Lightweight health check server for Railway (runs in background thread)."""
+    """Start the API server (replaces simple health check server)."""
     port = int(os.environ.get("PORT", 8080))
-    try:
-        from http.server import HTTPServer, BaseHTTPRequestHandler
-
-        class HealthHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                if self.path == "/health":
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/plain")
-                    self.end_headers()
-                    self.wfile.write(b"OK")
-                elif self.path == "/":
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/plain")
-                    self.end_headers()
-                    self.wfile.write(b"Aurora Checker Bot is running")
-                else:
-                    self.send_response(404)
-                    self.end_headers()
-
-            def log_message(self, format, *args):
-                pass  # Suppress logs
-
-        server = HTTPServer(("0.0.0.0", port), HealthHandler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        logger.info("Health check server started on port %d (thread)", port)
-    except Exception as e:
-        logger.warning("Health server failed to start: %s", e)
+    
+    async def run_api():
+        app = create_api_app()
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+        logger.info("API server started on port %d", port)
+        
+        # Keep it running
+        while True:
+            await asyncio.sleep(3600)
+            
+    # Run the API in a new event loop in a background thread
+    def thread_runner():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(run_api())
+        
+    thread = threading.Thread(target=thread_runner, daemon=True)
+    thread.start()
 
 
 def main():
