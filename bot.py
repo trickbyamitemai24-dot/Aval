@@ -8,6 +8,7 @@ import os
 import sys
 import logging
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from telegram import Update
 from telegram.ext import (
@@ -123,6 +124,8 @@ def start_health_server():
 
 
 def main():
+    # Start health check server IMMEDIATELY for Railway
+    start_health_server()
     # Load config
     config_path = os.environ.get("CONFIG_PATH", "config.yaml")
     config = load_config(config_path)
@@ -293,7 +296,6 @@ def main():
     logger.info("Bot handlers registered (28 commands). Starting polling...")
 
     # Start health check server in background thread (Railway healthcheck)
-    start_health_server()
 
     # Run bot — blocks until stopped
     # PTB handles SIGINT/SIGTERM internally

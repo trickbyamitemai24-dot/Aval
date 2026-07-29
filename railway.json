@@ -6,8 +6,6 @@
   "deploy": {
     "startCommand": "python3 -u bot.py",
     "restartPolicyType": "ALWAYS",
-    "restartPolicyMaxRetries": 10,
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 30
+    "restartPolicyMaxRetries": 10
   }
 }
