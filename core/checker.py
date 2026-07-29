@@ -321,43 +321,45 @@ async def _find_cheapest_product(session, ctx: _CheckoutContext) -> bool:
     import asyncio
     import requests
     def _fetch_requests():
-        try:
-            r = requests.get(f"{ctx.base_url}/products.json?limit=250", headers={"User-Agent": ctx.headers.get("User-Agent")}, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                products = data.get("products", [])
-                if products:
-                    cheapest = None
-                    min_price = float("inf")
-                    for p in products:
-                        for v in p.get("variants", []):
-                            if v.get("available") is False:
-                                continue
-                            try:
-                                price_str = v.get("price")
-                                if price_str is None:
+        # Try once with Browser UA, once with default requests UA (to bypass CF TLS spoofing detection)
+        for ua in [ctx.headers.get("User-Agent"), "python-requests/2.31.0", "curl/8.1.2"]:
+            try:
+                r = requests.get(f"{ctx.base_url}/products.json?limit=250", headers={"User-Agent": ua}, timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    products = data.get("products", [])
+                    if products:
+                        cheapest = None
+                        min_price = float("inf")
+                        for p in products:
+                            for v in p.get("variants", []):
+                                if v.get("available") is False:
                                     continue
-                                price = float(price_str)
-                                if price < min_price and price > 0:
-                                    min_price = price
-                                    cheapest = v
-                                    ctx.product_id = p["id"]
-                            except (ValueError, KeyError, TypeError):
-                                continue
-                    if cheapest:
-                        return True, cheapest["id"], min_price
-            
-            r2 = requests.get(f"{ctx.base_url}/collections/all", headers={"User-Agent": ctx.headers.get("User-Agent")}, timeout=10)
-            if r2.status_code == 200:
-                import re
-                html = r2.text
-                variants = re.findall(r'variant[_-]?id["\']?\s*[:=]\s*["\']?(\d{13,15})["\']?', html, re.IGNORECASE)
-                if not variants:
-                    variants = re.findall(r'variant(?:s)?[^\w]*?id[^\d]*?(\d{13,15})', html, re.IGNORECASE)
-                if variants:
-                    return True, variants[0], 10.00
-        except Exception as e:
-            logger.debug("requests fallback failed: %s", e)
+                                try:
+                                    price_str = v.get("price")
+                                    if price_str is None:
+                                        continue
+                                    price = float(price_str)
+                                    if price < min_price and price > 0:
+                                        min_price = price
+                                        cheapest = v
+                                        ctx.product_id = p["id"]
+                                except (ValueError, KeyError, TypeError):
+                                    continue
+                        if cheapest:
+                            return True, cheapest["id"], min_price
+                
+                r2 = requests.get(f"{ctx.base_url}/collections/all", headers={"User-Agent": ua}, timeout=10)
+                if r2.status_code == 200:
+                    import re
+                    html = r2.text
+                    variants = re.findall(r'variant[_-]?id["\']?\s*[:=]\s*["\']?(\d{13,15})["\']?', html, re.IGNORECASE)
+                    if not variants:
+                        variants = re.findall(r'variant(?:s)?[^\w]*?id[^\d]*?(\d{13,15})', html, re.IGNORECASE)
+                    if variants:
+                        return True, variants[0], 10.00
+            except Exception as e:
+                logger.debug("requests fallback with UA %s failed: %s", ua, e)
         return False, None, 0.0
 
     success, v_id, price = await asyncio.to_thread(_fetch_requests)
