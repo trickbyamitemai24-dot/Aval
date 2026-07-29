@@ -12,7 +12,6 @@ from templates.messages import format_start, format_banned, format_plans
 from templates.emojis import (
     e_card, e_memo, e_gem, e_clipboard, e_mobile,
     e_check_done, e_warning, e_lightning, e_chart, e_mailbox,
-    strip_tg_emoji
 )
 
 logger = logging.getLogger(__name__)
@@ -22,16 +21,16 @@ def _start_keyboard():
     """Inline keyboard for /start message."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("💳 Single Check", callback_data="start_sh"),
-            InlineKeyboardButton("📝 Mass Check", callback_data="start_chk"),
+            InlineKeyboardButton(f"{e_card()} Single Check", callback_data="start_sh"),
+            InlineKeyboardButton(f"{e_memo()} Mass Check", callback_data="start_chk"),
         ],
         [
-            InlineKeyboardButton("💎 Plans", callback_data="start_plans"),
-            InlineKeyboardButton("💎 Redeem", callback_data="start_redeem"),
+            InlineKeyboardButton(f"{e_gem()} Plans", callback_data="start_plans"),
+            InlineKeyboardButton(f"{e_gem()} Redeem", callback_data="start_redeem"),
         ],
         [
-            InlineKeyboardButton("📋 Status", callback_data="start_status"),
-            InlineKeyboardButton("📲 Proxies", callback_data="start_proxy"),
+            InlineKeyboardButton(f"{e_clipboard()} Status", callback_data="start_status"),
+            InlineKeyboardButton(f"{e_mobile()} Proxies", callback_data="start_proxy"),
         ],
     ])
 
@@ -88,7 +87,7 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif data == "start_chk":
         await query.message.reply_text(
-            "📝 Send <code>/chk</code> then upload a .txt file with cards.\n"
+            f"{e_memo()} Send <code>/chk</code> then upload a .txt file with cards.\n"
             "One card per line: <code>NUMBER|MM|YYYY|CVV</code>",
             parse_mode=ParseMode.HTML,
         )

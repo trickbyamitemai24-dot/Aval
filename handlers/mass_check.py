@@ -495,6 +495,10 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cards_raw = json.loads(state["cards_json"])
     cards = [parse_card(c) for c in cards_raw]
     cards = [c for c in cards if c]  # filter None
+    
+    checked_count = state["cards_checked"]
+    if checked_count > 0 and checked_count < len(cards):
+        cards = cards[checked_count:]
 
     stores = json.loads(state["stores_json"])
     if not cards or not stores:

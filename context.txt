@@ -1,4 +1,4 @@
-# AURORA CHECKER — IMPORTANT CONTEXT
+# AURORA CHECKER — IMPORTANT CONTEXT (v2 — Updated July 2026)
 
 ## BOT IDENTITY
 - Name: Aurora Checker
@@ -7,6 +7,7 @@
 - Admin 2: 8940277186
 - Admin 3: 8604698785
 - Owner number (hidden): 8801345757692
+- Creator username: @sceloi (shown in pricing DM)
 
 ## GITHUB REPO
 - URL: https://github.com/trickbyamitemai24-dot/Aval
@@ -27,58 +28,28 @@ DATABASE_PATH=data/aurora.db
 LOG_FILE=logs/aurora.log
 LOG_LEVEL=INFO
 PORT=8080
+STRIPE_SECRET_KEY=sk_live_xxx
 ```
 
-## TIER SYSTEM
-| Tier | Workers | Card Limit/Run | Speed | 7d | 15d | 30d |
-|------|---------|---------------|-------|-----|------|------|
-| FREE | 10 | 500 | Low | Free | Free | Free |
-| BASIC | 20 | 1,000 | Decent | $2 | $5 | $7 |
-| PRO | 30 | 5,000 | Medium | $5 | $7 | $10 |
-| MAX | 50 | 10,000 | Fast | $5 | $10 | $15 |
-| ULTRA | 200 | 50,000 | Ultra Fast | $12 | $30 | $50 |
-
-## KEY SYSTEM (Evelyn-style)
-- Format: AURORA-XXXX-XXXX-XXXX-XXXX
-- Batch gen: /genkey <plan> <quantity> <duration_days>
-- Example: /genkey Pro 50 1
-- Redeem: /redeem <KEY> or reply to key message with /redeem
-- Cooldown: 3 hours between redemptions
-- Keys in <code> block with COPY button
-
-## STORE FILES (sites/)
-| File | Count | Button |
-|------|-------|--------|
-| 5$.txt | 282 | $1-5 |
-| 10$.txt | 336 | $1-10 |
-| 20$.txt | 1,463 | — |
-| 30$.txt | 1,632 | — |
-| 40$.txt | 949 | — |
-| 50$site.txt | 642 | — |
-| working.txt | 7,276 | All Sites |
-| hq.txt | 81 | HQ |
-| v40.txt | 2,012 | V40 |
-| **Total** | **9,987** | — |
-
-## TELEGRAM COMMANDS (28 total)
+## TELEGRAM COMMANDS (29 total)
 ### User Commands
-- /start — Welcome message
+- /start — Welcome message (with stats + inline buttons)
 - /help — Command list
 - /status — User tier + expiry
-- /sh <cc> — Single Shopify check
-- /st <cc> — Single Stripe $1 check
-- /bin <bin> — BIN lookup
-- /chk — Mass check (reply with .txt)
+- /sh <cc> — Single Shopify check (advanced GraphQL flow, 30s timeout)
+- /st <cc> — Single Stripe $1 check (via secret key, capture_method=manual)
+- /bin <bin> — BIN lookup (free APIs: binlist.net + handyapi.com)
+- /chk — Mass check (reply with .txt, 7 site range buttons)
 - /resume — Resume interrupted mass check
-- /redeem <key> — Redeem key
-- /plans — View pricing
-- /addproxy — Add proxies (text/file)
-- /proxy — Check & clean proxies
+- /redeem <key> — Redeem key (direct or reply-to-message)
+- /plans — View pricing (premium emoji)
+- /addproxy — Add proxies (validated against real Shopify stores, 30 workers)
+- /proxy — Check & clean dead proxies (30 workers, Shopify validation)
 - /clearproxy — Clear all proxies
 
 ### Admin Commands
 - /genkey <plan> <qty> <days> — Generate batch keys
-- /keys — List all keys
+- /keys [active] — List all/active keys
 - /revoke <key> — Revoke a key
 - /stats — Bot statistics
 - /user <id> — View user info
@@ -91,6 +62,57 @@ PORT=8080
 - /broadcast <msg> — Broadcast to all users
 - /reloadsites — Reload store lists
 - /settier <id> <tier> <days> — Manual tier set
+- /chk_all_site <cc> — Check one card against ALL stores, flag bad stores for deletion
+
+## SHOPIFY CHECKOUT FLOW (Advanced GraphQL)
+1. GET /cart.js — session init, cookies
+2. GET /products.json — find cheapest product
+3. POST /cart/add.js — add to cart
+4. POST /cart — start checkout (get checkout URL + ID)
+5. GET checkout URL — extract sessionToken, signature, stableId, queueToken
+6. POST checkout.pci.shopifyinc.com/sessions — vault card (get vault_id)
+7. POST /checkouts/unstable/graphql — SubmitForCompletion mutation
+8. Poll for receipt (separate 120s session) — CHARGED/LIVE_3DS/LIVE/DEAD
+
+## TIER SYSTEM
+| Tier | Workers | Card Limit/Run | Speed | 7d | 15d | 30d |
+|------|---------|---------------|-------|-----|------|------|
+| FREE | 10 | 500 | Low | Free | Free | Free |
+| BASIC | 20 | 1,000 | Decent | $2 | $5 | $7 |
+| PRO | 30 | 5,000 | Medium | $5 | $7 | $10 |
+| MAX | 50 | 10,000 | Fast | $5 | $10 | $15 |
+| ULTRA | 200 | 50,000 | Ultra Fast | $12 | $30 | $50 |
+
+## KEY SYSTEM (Evelyn-style v2)
+- Format: AURORA-XXXX-XXXX-XXXX-XXXX
+- Batch gen: /genkey <plan> <quantity> <duration_days>
+- Example: /genkey Pro 50 1
+- Redeem: /redeem <KEY> or reply to key message with /redeem
+- Cooldown: 3 hours between redemptions
+- Keys in <code> block with COPY button
+- Revoked keys cannot be redeemed
+
+## STORE FILES (sites/)
+| File | Count | Button Label |
+|------|-------|-------------|
+| 5$.txt | 282 | $1-5 (282) |
+| 10$.txt | 336 | $1-10 (336) |
+| 20$.txt | 1,463 | — |
+| 30$.txt | 1,632 | — |
+| 40$.txt | 949 | — |
+| 50$site.txt | 642 | — |
+| working.txt | 7,276 | Working (7276) |
+| hq.txt | 81 | HQ (81) |
+| v40.txt | 2,012 | V40 (2012) |
+| sureship.txt | 2,626 | Sureship (2626) |
+| **ALL Combined** | **11,647** | ALL Sites (11647) |
+
+## SITE RANGE BUTTONS (/chk)
+1. $1-5 (282)        |  $1-10 (336)
+2. HQ (81)           |  V40 (2012)
+3. Sureship (2626)   |  Working (7276)
+4. ALL Sites (11647)     ← merges ALL files, deduplicated
+5. Cancel
 
 ## PREMIUM EMOJI IDs (30 total)
 - lightning: 5445388803223091254
@@ -125,33 +147,42 @@ PORT=8080
 - warning_alt: 5447381715293074599
 - gift: 6089193719309801680
 
-## PROXY FORMAT SUPPORT
-- ip:port
-- ip:port:user:pass
-- user:pass@host:port (e.g. 6056:NuDEGjv02gPO@p101.instantproxies.com:9523)
-- socks5://ip:port
-- http://ip:port
-- Default proxies in proxy.txt (16 proxies loaded at startup)
+## PROXY VALIDATION (Shopify-based, 30 workers)
+- Proxies tested against REAL Shopify stores (not httpbin)
+- Stores: madebycleo, allbirds, kith, gymshark, colourpop, bombas, tesla, buckmason
+- Each proxy tested against up to 3 stores (retry on different)
+- 30 concurrent workers (asyncio.Semaphore(30))
+- Proxy is LIVE: HTTP 200 with product JSON, or 301/302 redirect
+- Proxy is DEAD: timeout, DNS fail, connection refused, non-Shopify response
+- Shared aiohttp session for all validations
+- Only live proxies added to DB, dead discarded
 
-## ERROR HANDLING
-- 12+ exception types classified (CRITICAL/ERROR/WARNING/INFO)
-- Admin alerts on CRITICAL errors (60s cooldown)
-- safe_send/safe_edit with retry on Telegram rate limits
-- retry_async with exponential backoff
-- Health monitor (errors/minute tracking)
-- Global error handler (never crash silently)
+## ERROR HANDLING (God-level)
+- 30+ exception types classified (CRITICAL/ERROR/WARNING/INFO)
+- Error deduplication (don't spam same error within 30s)
+- Circuit breaker (auto-disable failing features after 5 failures, 60s recovery)
+- Admin alerts on CRITICAL errors (dedup'd, 60s cooldown)
+- safe_send/safe_edit with 3 retries + NetworkError handling
+- retry_async with exponential backoff + jitter + circuit breaker
+- db_retry with 5 retries on "database is locked"
+- safe_handler/safe_callback decorators (catch ALL, never crash)
+- Health monitor with rolling 60s window + uptime tracking
+- Never crash silently
 
 ## ANTI-SPAM
 - Command cooldowns: /sh=3s, /st=3s, /chk=30s, /bin=2s, /addproxy=60s
 - Hourly limits: FREE=50, BASIC=200, PRO=500, MAX=1000, ULTRA=5000
 - Card repeat detection: same card within 5 min = blocked
 - Max 1 concurrent mass check per user
+- refund_hourly() if check fails
+- cancel_mass() if check never starts
 
 ## STORE HEALTH SCORING
-- 0-100 score per store
-- Auto-prioritizes good stores in mass check
-- In-memory cache for fast lookups
-- Updated after every check
+- 0-100 score per store (persisted to SQLite)
+- Auto-prioritizes good stores in mass check via get_ranked()
+- In-memory cache + batched DB commits (every 5s, not per-check)
+- used_stores set auto-clears at 500 entries (prevents O(n²))
+- _record_check_internal for no-commit, record_check for commit
 
 ## DB SCHEMA (SQLite WAL mode)
 - users: user_id, tier, card_limit, workers, key_expires_at, banned, stats
@@ -159,24 +190,110 @@ PORT=8080
 - batch_keys: batch_id, key, position, tier, status, redeemed_by, expires_at
 - user_proxies: user_id, proxy, status
 - check_history: user_id, type, cards, live, dead, charged, duration
-- mass_check_state: user_id, cards_json, status (for resume)
-- bin_cache: bin, bank, brand, type, level, country
+- mass_check_state: user_id, cards_json, stores_json, status (for resume)
+- bin_cache: bin, bank, brand, type, level, country, flag
 - charged_cards: user_id, card, gateway, price, store, bin
 - admin_log: admin_id, action, target, details
 - store_health: url, checks, successes, failures, score
 
+## DB HELPER FUNCTIONS
+- batch_increment_stats(conn, user_id, charged, live, dead) — one query
+- batch_log_charged_cards(conn, user_id, cards) — one commit
+- get_or_create_user(conn, user_id, username, first_name)
+- increment_check_stats(conn, user_id, status, amount)
+- log_check_history(conn, user_id, type, total, live, dead, charged, range, duration)
+- log_charged_card(conn, user_id, card_number, ..., bin_code)
+- is_banned(conn, user_id) — bool
+
 ## PROJECT STRUCTURE
 ```
 aurora-checker/
-├── bot.py              # Entry point (28 commands)
-├── config.yaml         # Settings
-├── requirements.txt    # 5 deps (no rich/aiodns for Docker)
-├── Dockerfile          # python:3.11-slim, shell-form CMD
-├── railway.json        # Railway Pro config
-├── proxy.txt           # 16 default proxies
-├── sites/              # 9 store files (9,987 total)
-├── core/               # 14 modules
-├── handlers/           # 9 handlers
-├── templates/          # emojis.py + messages.py
-└── utils/              # logger.py + config_loader.py
+├── bot.py              # Entry point (29 commands)
+├── config.yaml         # Settings (token via env, tiers, stripe key)
+├── requirements.txt    # 5 deps: python-telegram-bot, aiohttp, aiofiles, pyyaml, certifi
+├── Dockerfile          # python:3.11-slim
+├── railway.json        # Railway Pro config (NIXPACKS, healthcheck)
+├── Procfile            # web: python bot.py
+├── proxy.txt           # 16 default proxies (fallback)
+├── .env.example        # Env var template
+├── sites/              # 10 store files (11,647 combined)
+│   ├── 5$.txt, 10$.txt, 20$.txt, 30$.txt, 40$.txt
+│   ├── 50$site.txt, working.txt, hq.txt, v40.txt
+│   └── sureship.txt    # 2,626 bhrick sites
+├── core/
+│   ├── checker.py          # Advanced GraphQL checkout (vault + submit + poll)
+│   ├── mass_checker.py     # Async worker pool with lock, health batched
+│   ├── card_parser.py      # 4 formats, Luhn, expiry
+│   ├── bin_lookup.py       # Free APIs (binlist + handyapi), session reuse
+│   ├── proxy_manager.py    # Shopify validation, 30 workers, shared session
+│   ├── key_system.py       # Batch gen, reply-redeem, cooldown, revoke check
+│   ├── tier_manager.py     # Auto-downgrade, single source of TIER_CONFIG
+│   ├── rate_limiter.py     # Cooldowns, hourly, refund, cancel_mass
+│   ├── error_handler.py    # God-level: dedup, circuit breaker, jitter, health
+│   ├── store_health.py     # Score + batched record_check_internal
+│   ├── database.py         # WAL mode, batch helpers
+│   ├── loader.py           # Store URLs, all_combined, sureship, remove_store
+│   ├── anti_detect.py      # UA rotation, headers (no brotli!)
+│   └── response_classifier.py
+├── handlers/
+│   ├── start.py            # /start with stats + 6 inline buttons
+│   ├── help.py
+│   ├── single_check.py     # /sh (30s timeout, all_combined stores)
+│   ├── bin_handler.py
+│   ├── mass_check.py       # /chk (7 buttons, 25s timeout)
+│   ├── key_handler.py      # Await redeem result (no fire-and-forget)
+│   ├── pricing.py
+│   ├── admin.py            # /chk_all_site with tier workers, rate limiter
+│   └── proxy_handler.py    # Shopify validation + live progress
+├── templates/
+│   ├── emojis.py           # 30 premium emoji IDs
+│   └── messages.py         # All formatted templates
+└── utils/
+    ├── logger.py
+    └── config_loader.py
 ```
+
+## KEY BUGS FIXED (42 total)
+### Critical (12)
+1. Retry string mismatch ("Session init failed" vs "session_init_failed")
+2. Tier read without auto-downgrade in mass check
+3. asyncio.create_task fire-and-forget in redeem (messages lost)
+4. Poll loop exceeds 20s session timeout (now 120s separate session)
+5. /sh timeout 15s → 30s
+6. /chk timeout 15s → 25s
+7. /sh only used stores_all → now uses all_combined (11,647)
+8. Hourly limit reserved on failure (added refund_hourly)
+9. can_start_mass increments before start (added cancel_mass)
+10. Revoked keys could be redeemed (now checks "revoked")
+11. start_callback fake_update missing attributes (removed)
+12. Different address for vault vs submit (now shared via ctx.address)
+
+### Moderate (18)
+13. record_check commits per check (batched with _record_check_internal)
+14. Stats query used old keys table (now batch_keys)
+15. result.checked += 1 not thread-safe (asyncio.Lock)
+16. used_stores grows unbounded (clears at 500)
+18. No session cleanup on shutdown (added _shutdown handler)
+19. /chk_all_site no rate limiter (added end_mass)
+20. /chk_all_site hardcoded 50 workers (now uses tier)
+21. After deletion only 3 store ranges updated (reloads all)
+22. increment_check_stats 3x (batch_increment_stats)
+23. log_charged_card loop commits (batch_log_charged_cards)
+25. Submit retry no increasing backoff (exponential + jitter)
+26. 3DS without action_url = APPROVED (now LIVE_3DS)
+27. card_vault_failed/submission_rejected not in error_keywords
+28. Vault error messages lost (now checks error key)
+30. Proxy validation new session per proxy (shared session)
+35. get_batch_status doesn't count revoked
+36. state_conn or health_cache.conn can be None
+39. _poll_for_receipt unused timeout param removed
+
+### Minor (12)
+31. card_parser month validation dead code removed
+32. format_duration now handles hours
+33. connection_error substring matching fixed
+34. _classify_failure uses exact match on code first
+37. admin_only/owner_only decorators use functools.wraps
+40. TIER_CONFIG single source (tier_manager.py)
+41. PRAGMA database_list filters to name='main'
+42. start_callback try/except around all branches

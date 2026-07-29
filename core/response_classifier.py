@@ -1,6 +1,6 @@
 """Response classifier — maps Shopify/Stripe responses to status."""
 
-# 30+ Shopify response codes mapped to classifications
+# Expanded Shopify/Stripe response codes mapped to classifications
 RESPONSE_MAP = {
     # CHARGED — payment succeeded or processing
     "succeeded":           ("CHARGED", "succeeded"),
@@ -8,8 +8,9 @@ RESPONSE_MAP = {
     "completed":           ("CHARGED", "completed"),
     "paid":                ("CHARGED", "paid"),
     "capture":             ("CHARGED", "captured"),
+    "approved":            ("CHARGED", "approved"),
 
-    # LIVE — card is valid but payment didn't complete
+    # LIVE — card is valid but payment didn't complete / soft decline
     "requires_action":     ("LIVE_3DS", "3ds_required"),
     "insufficient_funds":  ("LIVE", "insufficient_funds"),
     "test_mode_live_card": ("LIVE", "test_mode_live_card"),
@@ -17,11 +18,19 @@ RESPONSE_MAP = {
     "do_not_honor":        ("LIVE", "do_not_honor"),
     "3d_secure":           ("LIVE_3DS", "3ds_required"),
     "3ds":                 ("LIVE_3DS", "3ds_required"),
-    "redirect":           ("LIVE_3DS", "3ds_redirect"),
+    "redirect":            ("LIVE_3DS", "3ds_redirect"),
     "pickup_card":         ("LIVE", "pickup_card"),
     "transaction_needs_verification": ("LIVE_3DS", "3ds_required"),
+    "transaction_not_allowed": ("LIVE", "transaction_not_allowed"),
+    "amount_too_large":    ("LIVE", "amount_too_large"),
+    "withdrawal_count_limit_exceeded": ("LIVE", "withdrawal_limit_exceeded"),
+    "authentication_required": ("LIVE_3DS", "3ds_required"),
+    "requires_payment_method": ("LIVE", "requires_payment_method"),
+    "approve_with_id":     ("LIVE", "approve_with_id"),
+    "issuer_not_available": ("LIVE", "issuer_not_available"),
+    "verify_address":      ("LIVE", "verify_address"),
 
-    # DEAD — card declined
+    # DEAD — hard decline
     "card_declined":       ("DEAD", "card_declined"),
     "incorrect_cvc":       ("DEAD", "incorrect_cvc"),
     "invalid_cvc":         ("DEAD", "incorrect_cvc"),
@@ -40,8 +49,11 @@ RESPONSE_MAP = {
     "incorrect_number":    ("DEAD", "incorrect_number"),
     "card_velocity_exceeded": ("DEAD", "velocity_exceeded"),
     "rejected":            ("DEAD", "rejected"),
+    "processing_error":    ("DEAD", "processing_error"),
+    "reenter_transaction": ("DEAD", "reenter_transaction"),
+    "card_not_supported":  ("DEAD", "card_not_supported"),
+    "currency_not_supported": ("DEAD", "currency_not_supported"),
 }
-
 
 def classify_shopify_response(status_code: int, response_body: dict | str) -> tuple[str, str]:
     """Classify a Shopify checkout response.
@@ -54,16 +66,28 @@ def classify_shopify_response(status_code: int, response_body: dict | str) -> tu
     """
     body_str = str(response_body).lower()
 
-    # Check for error messages in response
+    # Priority exact matching from body dictionary if possible
+    if isinstance(response_body, dict):
+        # Traverse for error codes
+        if "error" in response_body:
+            err = response_body["error"]
+            if isinstance(err, dict):
+                code = err.get("code") or err.get("decline_code") or err.get("type")
+                if code and code.lower() in RESPONSE_MAP:
+                    return RESPONSE_MAP[code.lower()]
+            elif isinstance(err, str) and err.lower() in RESPONSE_MAP:
+                return RESPONSE_MAP[err.lower()]
+
+    # Fallback string matching
     for key, (classification, message) in RESPONSE_MAP.items():
         if key in body_str:
             return classification, message
 
-    # Check HTTP status
-    if status_code == 200:
+    # Check HTTP status heuristics
+    if status_code in (200, 201, 202):
         if "succeeded" in body_str or "processing" in body_str:
             return "CHARGED", "succeeded"
-        if "requires_action" in body_str or "3ds" in body_str:
+        if "requires_action" in body_str or "3ds" in body_str or "challenge" in body_str:
             return "LIVE_3DS", "3ds_required"
         if "insufficient" in body_str:
             return "LIVE", "insufficient_funds"
@@ -72,10 +96,11 @@ def classify_shopify_response(status_code: int, response_body: dict | str) -> tu
         return "DEAD", "unknown_decline"
 
     if status_code == 402:
-        # Payment required — usually a decline
         return "DEAD", "card_declined"
 
     if 400 <= status_code < 500:
+        if "fraud" in body_str or "risk" in body_str:
+            return "DEAD", "fraud_blocked"
         return "DEAD", "card_declined"
 
     if status_code >= 500:
