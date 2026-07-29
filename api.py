@@ -2,11 +2,12 @@ import urllib.parse
 from aiohttp import web
 from core.card_parser import parse_card
 from core.checker import shopify_check
+from core.proxy_manager import normalize_proxy
 
 async def shopify_handler(request):
     site = request.query.get("site")
     cc = request.query.get("cc")
-    proxy = request.query.get("proxy")
+    raw_proxy = request.query.get("proxy")
 
     if not site or not cc:
         return web.json_response({"error": "Missing 'site' or 'cc' parameter"}, status=400)
@@ -17,6 +18,10 @@ async def shopify_handler(request):
     card = parse_card(cc)
     if not card:
         return web.json_response({"error": "Invalid card format"}, status=400)
+
+    proxy = normalize_proxy(raw_proxy) if raw_proxy else None
+    if raw_proxy and not proxy:
+        return web.json_response({"error": "Invalid proxy format"}, status=400)
 
     try:
         # Run the shopify check
