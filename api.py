@@ -61,27 +61,30 @@ def create_api_app():
     return app
 
 async def debug_handler(request):
+    import requests
     import aiohttp
-    proxy = "http://purevpn0s11127688:4mwmyaoa@px014236.pointtoserver.com:10780"
+    
     url = "https://artpop.com/products.json?limit=1"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    browser_ua = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"}
     
     res = {}
     
-    # 1. Direct
+    try: res["requests_default"] = requests.get(url, timeout=5).status_code
+    except Exception as e: res["requests_default"] = str(e)
+    
+    try: res["requests_browser"] = requests.get(url, headers=browser_ua, timeout=5).status_code
+    except Exception as e: res["requests_browser"] = str(e)
+    
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get(url, headers=headers) as r:
-                res["direct"] = r.status
-    except Exception as e:
-        res["direct"] = str(e)
-        
-    # 2. Proxy
+            async with s.get(url, timeout=5) as r:
+                res["aiohttp_default"] = r.status
+    except Exception as e: res["aiohttp_default"] = str(e)
+    
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get(url, proxy=proxy, headers=headers) as r:
-                res["proxy"] = r.status
-    except Exception as e:
-        res["proxy"] = str(e)
-        
+            async with s.get(url, headers=browser_ua, timeout=5) as r:
+                res["aiohttp_browser"] = r.status
+    except Exception as e: res["aiohttp_browser"] = str(e)
+    
     return web.json_response(res)
