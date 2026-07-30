@@ -225,7 +225,9 @@ async def _do_shopify_check(
             # Step 4: Start checkout
             if not await _start_checkout(session, ctx):
                 err_msg = f"checkout_start_failed (url: {ctx.checkout_url})"
-                if "cloudflare" in ctx.last_html.lower(): err_msg = "checkout_cf_blocked"
+                # Only flag CF block if it's an actual challenge page
+                if "challenge-platform" in ctx.last_html.lower() or "cf-browser-verification" in ctx.last_html.lower(): 
+                    err_msg = "checkout_cf_blocked"
                 
                 logger.debug("Checkout start failed. HTML length: %s", len(ctx.last_html))
                 
@@ -549,7 +551,7 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
             html = await r.text()
             ctx.last_html = html
 
-            if r.status == 200 and "captcha" not in html.lower() and "challenge-platform" not in html.lower():
+            if r.status == 200 and "challenge-platform" not in html.lower():
                 match = re.search(r"/checkouts/(?:cn/)?([a-zA-Z0-9]+)", ctx.checkout_url)
                 if match:
                     ctx.checkout_id = match.group(1)
@@ -582,7 +584,7 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
             ctx.last_html = html
 
             # Check for CAPTCHA/checkpoint
-            if "captcha" in html.lower() or "datadome" in html.lower() or ("cloudflare" in html.lower() and "challenge" in html.lower()):
+            if "datadome" in html.lower() or "challenge-platform" in html.lower() or "cf-browser-verification" in html.lower():
                 logger.warning("Checkpoint/CAPTCHA detected on %s during checkout start", current_url)
                 return False
 
@@ -633,10 +635,10 @@ async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
         if meta_token and meta_token.get('content'):
             ctx.session_token = meta_token['content'].strip('"&quot;')
     
-        # Check for Captcha/Datadome
-        if "captcha" in html.lower() or "datadome" in html.lower() or "cloudflare" in html.lower() and "challenge" in html.lower():
-            logger.warning("Checkpoint/CAPTCHA detected on %s", ctx.checkout_url)
-            return False
+            # Check for Captcha/Datadome
+            if "datadome" in html.lower() or "challenge-platform" in html.lower() or "cf-browser-verification" in html.lower():
+                logger.warning("Checkpoint/CAPTCHA detected on %s", ctx.checkout_url)
+                return False
     
         # Extract all script tags for JSON/JS variables
         scripts_text = " ".join([script.string for script in soup.find_all('script') if script.string])
