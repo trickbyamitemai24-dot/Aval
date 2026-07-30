@@ -123,9 +123,24 @@ class CffiClientSession:
                     out["timeout"] = v
             elif k == "allow_redirects":
                 out["allow_redirects"] = v
-            elif k in ("headers", "data", "json", "params"):
+            elif k == "headers" and v:
+                # Filter out standard browser headers so curl_cffi can use its perfect impersonation headers
+                filtered = {}
+                ignore_keys = {
+                    "accept-language", "user-agent", "sec-ch-ua", 
+                    "sec-ch-ua-mobile", "sec-ch-ua-platform", "sec-fetch-dest",
+                    "sec-fetch-mode", "sec-fetch-site", "sec-fetch-user",
+                    "upgrade-insecure-requests", "priority"
+                }
+                for hk, hv in v.items():
+                    if hk.lower() not in ignore_keys:
+                        # Allow explicit JSON accept headers to pass through, but drop HTML ones
+                        if hk.lower() == "accept" and "text/html" in str(hv).lower():
+                            continue
+                        filtered[hk] = hv
+                out["headers"] = filtered
+            elif k in ("data", "json", "params"):
                 out[k] = v
-            # silently drop aiohttp-only kwargs (connector, proxy per-req, ssl, etc.)
         return out
 
     def get(self, url, **kwargs):
@@ -209,12 +224,14 @@ async def _do_shopify_check(
 
             # Step 4: Start checkout
             if not await _start_checkout(session, ctx):
-                err_msg = "checkout_start_failed"
+                err_msg = f"checkout_start_failed (url: {ctx.checkout_url})"
                 if "cloudflare" in ctx.last_html.lower(): err_msg = "checkout_cf_blocked"
+                
+                logger.debug("Checkout start failed. HTML length: %s", len(ctx.last_html))
                 
                 # If aiohttp failed due to CF blocks, try requests-based fallback
                 if proxy and ("cf_blocked" in err_msg or "start_failed" in err_msg):
-                    logger.warning("aiohttp checkout failed, falling back to sync requests for %s", store_url)
+                    logger.warning("cffi checkout failed, falling back to sync requests for %s", store_url)
                     from core.shopify_requests import run_requests_checkout
                     return await asyncio.to_thread(run_requests_checkout, card, store_url, proxy, prof)
                     
