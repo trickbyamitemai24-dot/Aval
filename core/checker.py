@@ -269,7 +269,7 @@ async def _do_shopify_check(
                 rest_result = await _submit_payment_rest(session, ctx, card)
                 if rest_result:
                     return rest_result
-                return CheckResult("DEAD", "submission_rejected", "Shopify Payments", ctx.price, store_url, card)
+                return CheckResult("DEAD", "submission_rejected", "Shopify Payments", ctx.price, store_url, card, debug_info=f"reject_codes={ctx.submit_errors}")
             await step_jitter()
 
             # Step 8: Poll for receipt
@@ -328,6 +328,7 @@ class _CheckoutContext:
         self.checkout_url = None
         self.session_token = None
         self.last_html = ""
+        self.submit_errors = []
         self.signature = None
         self.stable_id = str(uuid.uuid4())
         self.queue_token = None
@@ -1325,6 +1326,7 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
                     if "WAITING_PENDING_TERMS" in codes:
                         await asyncio.sleep(0.5)
                         continue
+                    ctx.submit_errors = codes
                     return None
 
                 else:
