@@ -32,6 +32,9 @@ async def shopify_handler(request):
             timeout=25  # Give it a bit more time for API
         )
         
+        # Pull extra debug info if present
+        debug_info = getattr(result, "debug_info", "")
+        
         return web.json_response({
             "status": result.status,
             "message": result.message,
@@ -39,7 +42,7 @@ async def shopify_handler(request):
             "price": result.price,
             "store": result.store,
             "card": card.masked,
-            "debug_proxy": proxy
+            "debug": debug_info
         })
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)

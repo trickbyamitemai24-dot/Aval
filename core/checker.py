@@ -55,6 +55,7 @@ class CheckResult:
     price: float
     store: str
     card: Card
+    debug_info: str = ""
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -235,9 +236,11 @@ async def _do_shopify_check(
                 if proxy and ("cf_blocked" in err_msg or "start_failed" in err_msg):
                     logger.warning("cffi checkout failed, falling back to sync requests for %s", store_url)
                     from core.shopify_requests import run_requests_checkout
-                    return await asyncio.to_thread(run_requests_checkout, card, store_url, proxy, prof)
+                    res = await asyncio.to_thread(run_requests_checkout, card, store_url, proxy, prof)
+                    res.debug_info = f"cffi_failed, html_len={len(ctx.last_html)}, url={ctx.checkout_url}"
+                    return res
                     
-                return CheckResult("DEAD", err_msg, "Shopify Payments", ctx.price, store_url, card)
+                return CheckResult("DEAD", err_msg, "Shopify Payments", ctx.price, store_url, card, debug_info=f"url={ctx.checkout_url}")
             await step_jitter()
 
             # Step 5: Extract checkout metadata
