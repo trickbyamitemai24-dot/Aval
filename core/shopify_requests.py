@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 
 from core.card_parser import Card
-from core.checker import CheckResult, _CheckoutContext, KNOWN_VARIANTS, _classify_failure
+from core.checker import CheckResult, _CheckoutContext, _classify_failure
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,10 @@ def _req_init_session(session, ctx: _CheckoutContext) -> bool:
         return False
 
 def _req_find_product(session, ctx: _CheckoutContext) -> bool:
+    KNOWN_VARIANTS = {
+        "artpop.com": "43093574385834",
+        "colourpop.myshopify.com": "32230107873362",
+    }
     netloc = urlparse(ctx.base_url).netloc.replace("www.", "")
     if netloc in KNOWN_VARIANTS:
         ctx.variant_id = KNOWN_VARIANTS[netloc]
