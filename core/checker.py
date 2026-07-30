@@ -119,7 +119,16 @@ async def _do_shopify_check(
 
             # Step 4: Start checkout
             if not await _start_checkout(session, ctx):
-                return CheckResult("DEAD", "checkout_start_failed", "Shopify Payments", ctx.price, store_url, card)
+                err_msg = "checkout_start_failed"
+                if "cloudflare" in ctx.last_html.lower(): err_msg = "checkout_cf_blocked"
+                
+                # If aiohttp failed due to CF blocks, try requests-based fallback
+                if proxy and ("cf_blocked" in err_msg or "start_failed" in err_msg):
+                    logger.warning("aiohttp checkout failed, falling back to sync requests for %s", store_url)
+                    from core.shopify_requests import run_requests_checkout
+                    return await asyncio.to_thread(run_requests_checkout, card, store_url, proxy, prof)
+                    
+                return CheckResult("DEAD", err_msg, "Shopify Payments", ctx.price, store_url, card)
             await step_jitter()
 
             # Step 5: Extract checkout metadata
@@ -206,6 +215,7 @@ class _CheckoutContext:
         self.checkout_id = None
         self.checkout_url = None
         self.session_token = None
+        self.last_html = ""
         self.signature = None
         self.stable_id = str(uuid.uuid4())
         self.queue_token = None
@@ -441,10 +451,24 @@ async def _start_checkout(session, ctx: _CheckoutContext) -> bool:
                 
             ctx.checkout_url = str(r.url)
             html = await r.text()
+            ctx.last_html = html
             
             # Check for CAPTCHA/checkpoint
             if "captcha" in html.lower() or "datadome" in html.lower() or ("cloudflare" in html.lower() and "challenge" in html.lower()):
                 logger.warning("Checkpoint/CAPTCHA detected on %s during checkout start", current_url)
+                # Fallback to permalink checkout if blocked
+                permalink = f"{ctx.base_url}/cart/{ctx.variant_id}:1"
+                try:
+                    r_pl = await session.get(permalink, headers=headers, allow_redirects=True, timeout=aiohttp.ClientTimeout(total=15))
+                    ctx.checkout_url = str(r_pl.url)
+                    html = await r_pl.text()
+                    ctx.last_html = html
+                    match = re.search(r"/checkouts/(?:cn/)?([a-zA-Z0-9]+)", ctx.checkout_url)
+                    if match and "captcha" not in html.lower() and "challenge" not in html.lower():
+                        ctx.checkout_id = match.group(1)
+                        return True
+                except Exception:
+                    pass
                 return False
             
             # Check for JS redirects (e.g. window.location.href = '...')
