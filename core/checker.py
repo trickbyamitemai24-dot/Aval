@@ -259,6 +259,7 @@ async def _do_shopify_check(
             proposal_ok = await _negotiate_proposal(session, ctx, card)
             if not proposal_ok:
                 logger.debug("Proposal negotiation failed for %s — trying submit anyway", store_url)
+                ctx.submit_errors.append("negotiation_failed")
             await step_jitter()
 
             # Step 7: Submit for completion
@@ -1007,6 +1008,7 @@ async def _negotiate_proposal(session, ctx: _CheckoutContext, card: Card) -> boo
                     continue
 
                 if "errors" in data and not data.get("data"):
+                    logger.debug("Proposal query errors: %s", data["errors"])
                     await asyncio.sleep(1)
                     continue
 
