@@ -113,11 +113,7 @@ class BinLookup:
 
     async def _api_lookup(self, bin_code: str) -> dict:
         """Call BIN APIs. Falls back to generic info on failure."""
-        if self.api_url:
-            result = await self._try_api(self.api_url, bin_code)
-            if result:
-                return result
-
+        # Try configured APIs first
         for api in self.apis:
             result = await self._try_api(api, bin_code)
             if result:
