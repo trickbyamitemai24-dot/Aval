@@ -746,3 +746,155 @@ def format_amazon_approved_list(cards):
         lines.append(f"   {sc(response)}")
     lines.append(f"\n{ftr()}")
     return "\n".join(lines)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# CHECK ALL SITES
+# ═════════════════════════════════════════════════════════════════════════
+
+def format_chkall_start(card_masked, total, workers):
+    """Initial 'starting' message for /chkall."""
+    return (
+        f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴀʟʟ sɪᴛᴇs')}\n\n"
+        f"{e_card()}   {B('ᴄᴀʀᴅ')}     : {C(card_masked)}\n"
+        f"{e_globe()}  {B('sᴛᴏʀᴇs')}   : {total}\n"
+        f"{e_lightning()} {B('ᴡᴏʀᴋᴇʀs')}  : {workers} (ᴘᴀʀᴀʟʟᴇʟ)\n\n"
+        f"{DS}\n"
+        f"{e_cross()}  {B('ʙᴀᴅ sᴛᴏʀᴇs ᴡɪʟʟ ʙᴇ ғʟᴀɢɢᴇᴅ ғᴏʀ ᴅᴇʟᴇᴛɪᴏɴ')}\n\n"
+        f"{e_refresh()} {I('sᴛᴀʀᴛɪɴɢ...')}\n\n{D}"
+    )
+
+
+def format_chkall_progress(card_masked, checked, total, duration,
+                           charged, live, good, bad):
+    """Live progress update for /chkall."""
+    pct = (checked / total) if total > 0 else 0
+    pct_num = int(pct * 100)
+
+    # ETA
+    eta_str = ""
+    if checked > 0 and duration > 0:
+        rate = duration / checked
+        remaining = int((total - checked) * rate)
+        eta_m = remaining // 60
+        eta_s = remaining % 60
+        eta_str = f" | ᴇᴛᴀ: {eta_m}m {eta_s}s"
+
+    m = int(duration // 60)
+    s = int(duration % 60)
+
+    return (
+        f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴀʟʟ sɪᴛᴇs')}\n\n"
+        f"{e_card()}   {B('ᴄᴀʀᴅ')}      : {C(card_masked)}\n"
+        f"{e_globe()}  {B('sᴛᴏʀᴇs')}    : {total}\n\n"
+        f"{bar(pct)}\n"
+        f"   {checked}/{total} ({pct_num}%)\n"
+        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {m}m {s}s{eta_str}\n\n"
+        f"{DS}\n"
+        f"{e_heart()}         {B('ᴄʜᴀʀɢᴇᴅ')}  : {charged}  {ratio(charged, total)}\n"
+        f"{e_check_done()}   {B('ʟɪᴠᴇ')}     : {live}  {ratio(live, total)}\n"
+        f"{e_check_done()}   {B('ɢᴏᴏᴅ')}     : {good}  {ratio(good, total)}\n"
+        f"{e_cross()}         {B('ʙᴀᴅ')}      : {bad}  {ratio(bad, total)}\n\n"
+        f"{D}"
+    )
+
+
+def format_chkall_complete(card_masked, total, duration,
+                           charged_stores, live_stores,
+                           good_count, bad_stores):
+    """Final result message for /chkall (no bad stores to delete)."""
+    m = int(duration // 60)
+    s = int(duration % 60)
+    success = len(charged_stores) + len(live_stores)
+    rate = int((success / total * 100)) if total > 0 else 0
+
+    t = (
+        f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴀʟʟ sɪᴛᴇs — ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
+        f"{e_card()}   {B('ᴄᴀʀᴅ')}       : {C(card_masked)}\n"
+        f"{e_globe()}  {B('sᴛᴏʀᴇs')}     : {total}\n"
+        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}     : {m}m {s}s\n\n"
+        f"{DS}\n"
+    )
+
+    # Charged section
+    t += f"{e_heart()}   {B('ᴄʜᴀʀɢᴇᴅ')}  : {len(charged_stores)}\n"
+    for url, price in charged_stores[:10]:
+        t += f"   {e_heart()} {url} — ${price}\n"
+    if len(charged_stores) > 10:
+        t += f"   {I(f'... ᴀɴᴅ {len(charged_stores) - 10} ᴍᴏʀᴇ')}\n"
+
+    # Live section
+    t += f"\n{e_check_done()} {B('ʟɪᴠᴇ')}     : {len(live_stores)}\n"
+    for url, msg in live_stores[:10]:
+        t += f"   {e_check_done()} {url} — {sc(msg)}\n"
+    if len(live_stores) > 10:
+        t += f"   {I(f'... ᴀɴᴅ {len(live_stores) - 10} ᴍᴏʀᴇ')}\n"
+
+    # Summary
+    t += (
+        f"\n{DS}\n"
+        f"{e_check_done()} {B('ɢᴏᴏᴅ sᴛᴏʀᴇs')}  : {good_count}  {ratio(good_count, total)}\n"
+        f"{e_cross()}   {B('ʙᴀᴅ sᴛᴏʀᴇs')}   : {len(bad_stores)}  {ratio(len(bad_stores), total)}\n"
+        f"📈  {B('sᴜᴄᴄᴇss')}      : {rate}%  {ratio(success, total, 12)}\n\n"
+    )
+
+    if not bad_stores:
+        t += f"{e_check_done()} {B('ᴀʟʟ sᴛᴏʀᴇs ᴀʀᴇ ʜᴇᴀʟᴛʜʏ!')}\n\n"
+
+    t += ftr()
+    return t
+
+
+def format_chkall_bad_stores(bad_stores):
+    """Bad stores breakdown appended after the complete message."""
+    # Group by error type
+    error_counts = {}
+    for _, _, reason in bad_stores:
+        error_counts[reason] = error_counts.get(reason, 0) + 1
+
+    t = (
+        f"\n{e_cross()} {B('ʙᴀᴅ sᴛᴏʀᴇs ғʟᴀɢɢᴇᴅ ғᴏʀ ᴅᴇʟᴇᴛɪᴏɴ:')}\n"
+        f"{I('sᴛᴏʀᴇs ᴡɪᴛʜ ᴇʀʀᴏʀs (ɴᴏ ᴘʀᴏᴅᴜᴄᴛs, ᴛɪᴍᴇᴏᴜᴛ, ᴅɴs ғᴀɪʟ, ᴇᴛᴄ.)')}\n\n"
+    )
+    for reason, count in sorted(error_counts.items(), key=lambda x: -x[1]):
+        t += f"   • {sc(reason)}: {B(str(count))} sᴛᴏʀᴇs\n"
+
+    t += (
+        f"\n{DS}\n"
+        f"{e_cross()} {B('ᴛᴏᴛᴀʟ ᴛᴏ ᴅᴇʟᴇᴛᴇ')}: {B(str(len(bad_stores)))} sᴛᴏʀᴇs\n\n"
+        f"{I('ᴘʀᴇss ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ ᴛᴏ ᴀᴘᴘʀᴏᴠᴇ ᴅᴇʟᴇᴛɪᴏɴ.')}"
+    )
+    return t
+
+
+def format_chkall_usage():
+    """Usage for /chkall."""
+    return (
+        f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴀʟʟ sɪᴛᴇs')}\n\n"
+        f"{e_cross()} {B('ᴜsᴀɢᴇ:')}\n"
+        f"{C('/chkall site 4798510629051356|12|2028|893')}\n\n"
+        f"{I('ᴄʜᴇᴄᴋs ᴏɴᴇ ᴄᴀʀᴅ ᴀɢᴀɪɴsᴛ ᴀʟʟ sᴛᴏʀᴇs.')}\n"
+        f"{I('ʙᴀᴅ/ᴇʀʀᴏʀ sᴛᴏʀᴇs ᴀʀᴇ ғʟᴀɢɢᴇᴅ ғᴏʀ ᴅᴇʟᴇᴛɪᴏɴ.')}\n\n"
+        f"{ftr()}"
+    )
+
+
+def format_chkall_deleted(deleted, failed, files_modified, remaining):
+    """Deletion complete message."""
+    return (
+        f"{hdr()}\n\n{frame('ᴅᴇʟᴇᴛɪᴏɴ ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
+        f"{e_cross()}         {B('ᴅᴇʟᴇᴛᴇᴅ')}    : {deleted} sᴛᴏʀᴇs\n"
+        f"{e_warning()}       {B('ғᴀɪʟᴇᴅ')}     : {failed}\n"
+        f"{e_clipboard()}     {B('ғɪʟᴇs')}      : {files_modified} ᴍᴏᴅɪғɪᴇᴅ\n"
+        f"{e_globe()}         {B('ʀᴇᴍᴀɪɴɪɴɢ')}  : {remaining} sᴛᴏʀᴇs\n\n"
+        f"{ftr()}"
+    )
+
+
+def format_chkall_cancelled():
+    """Deletion cancelled message."""
+    return (
+        f"{hdr()}\n\n{frame('ᴅᴇʟᴇᴛɪᴏɴ ᴄᴀɴᴄᴇʟʟᴇᴅ')}\n\n"
+        f"{e_cross()} {B('ʙᴀᴅ sᴛᴏʀᴇs ᴋᴇᴘᴛ. ɴᴏ ᴄʜᴀɴɢᴇs ᴍᴀᴅᴇ.')}\n\n"
+        f"{ftr()}"
+    )

@@ -14,7 +14,12 @@ from core.database import get_or_create_user, is_banned
 from core.card_parser import parse_card, luhn_valid
 from core.checker import shopify_check
 from core.rate_limiter import rate_limiter
-from templates.messages import format_error, format_banned
+from templates.messages import (
+    format_error, format_banned,
+    format_chkall_start, format_chkall_progress, format_chkall_complete,
+    format_chkall_bad_stores, format_chkall_usage, format_chkall_deleted,
+    format_chkall_cancelled,
+)
 from templates.emojis import (
     e_lightning, e_check_done, e_cross, e_gem, e_chart, e_heart,
     e_clipboard, e_mailbox, e_warning, e_smile, e_calendar, e_card,
@@ -458,11 +463,6 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     are flagged for deletion. After completion, shows a button to approve deletion.
     """
     user = update.effective_user
-    config = ctx.bot_data["config"]
-
-    if not is_owner(user.id, config):
-        await update.message.reply_text(f"{e_cross()} Owner access required.")
-        return
 
     # Parse card from args or reply
     raw_card = None
@@ -475,27 +475,17 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if not raw_card:
         await update.message.reply_text(
-            f"{e_cross()} {BOLD('Usage:')}\n"
-            f"{CODE('/chk_all_site 4798510629051356|12|2028|893')}\n\n"
-            f"Checks one card against ALL stores.\n"
-            f"Bad/error stores are flagged for deletion.",
-            parse_mode=ParseMode.HTML,
+            format_chkall_usage(), parse_mode=ParseMode.HTML,
         )
         return
 
     card = parse_card(raw_card)
     if not card:
-        await update.message.reply_text(
-            f"{e_cross()} Invalid card format.",
-            parse_mode=ParseMode.HTML,
-        )
+        await update.message.reply_text(format_error("ɪɴᴠᴀʟɪᴅ ᴄᴀʀᴅ ғᴏʀᴍᴀᴛ."), parse_mode=ParseMode.HTML)
         return
 
     if not luhn_valid(card.number):
-        await update.message.reply_text(
-            f"{e_cross()} Card failed Luhn check.",
-            parse_mode=ParseMode.HTML,
-        )
+        await update.message.reply_text(format_error("ᴄᴀʀᴅ ғᴀɪʟᴇᴅ ʟᴜʜɴ ᴄʜᴇᴄᴋ."), parse_mode=ParseMode.HTML)
         return
 
     # Get all stores with source files
@@ -503,37 +493,29 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     all_stores = loader.get_all_stores_with_source()
 
     if not all_stores:
-        await update.message.reply_text(
-            f"{e_cross()} No stores found.",
-            parse_mode=ParseMode.HTML,
-        )
+        await update.message.reply_text(format_error("ɴᴏ sᴛᴏʀᴇs ғᴏᴜɴᴅ."), parse_mode=ParseMode.HTML)
         return
 
     total = len(all_stores)
-    await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{DIVIDER}\n\n"
-        f"{e_chart()} {BOLD('Check All Sites')}\n\n"
-        f"{e_card()} Card: {CODE(card.masked)}\n"
-        f"{e_chart()} Total stores: {total}\n"
-        f"{e_lightning()} Workers: 50 (parallel)\n"
-        f"{e_cross()} Bad stores will be flagged for deletion\n\n"
-        f"{e_heart()} Starting check...",
-        parse_mode=ParseMode.HTML,
-    )
-
-    # Run the check
-    pm = ctx.bot_data.get("proxy_manager")
-    good_stores = []     # stores where card got a real response (CHARGED/LIVE/DEAD)
-    bad_stores = []      # stores with errors (no_products, timeout, dns, session_init, etc.)
-    charged_stores = []
-    live_stores = []
 
     # Get owner's tier workers
     conn = ctx.bot_data["db"]
     owner_tier = get_user_tier(conn, user.id)
     owner_cfg = get_tier_config(owner_tier)
     worker_count = owner_cfg["workers"]
+
+    # Send start message
+    await update.message.reply_text(
+        format_chkall_start(card.masked, total, worker_count),
+        parse_mode=ParseMode.HTML,
+    )
+
+    # Run the check
+    pm = ctx.bot_data.get("proxy_manager")
+    good_stores = []
+    bad_stores = []
+    charged_stores = []
+    live_stores = []
 
     semaphore = asyncio.Semaphore(worker_count)
     progress = {"checked": 0}
@@ -570,25 +552,14 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 elif result.status in ("LIVE", "LIVE_3DS"):
                     live_stores.append((store_url, result.message))
 
-            # Progress update every 50 stores
+            # Progress update every 50 stores or on last
             if checked % 50 == 0 or checked == total:
                 elapsed = _time.time() - start_time
-                m = int(elapsed // 60)
-                s = int(elapsed % 60)
-                pct = int(checked / total * 100) if total > 0 else 0
                 try:
-                    text = (
-                        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-                        f"{DIVIDER}\n\n"
-                        f"{e_chart()} {BOLD('Check All Sites — Progress')}\n\n"
-                        f"{e_card()} Card: {CODE(card.masked)}\n"
-                        f"{e_chart()} Checked: {checked}/{total} ({pct}%)\n"
-                        f"⏰ Duration: {m}m {s}s\n\n"
-                        f"{e_heart()} Charged: {len(charged_stores)}\n"
-                        f"{e_check_done()} Live: {len(live_stores)}\n"
-                        f"{e_check_done()} Good stores: {len(good_stores)}\n"
-                        f"{e_cross()} Bad stores: {len(bad_stores)}\n\n"
-                        f"{DIVIDER}"
+                    text = format_chkall_progress(
+                        card.masked, checked, total, elapsed,
+                        len(charged_stores), len(live_stores),
+                        len(good_stores), len(bad_stores),
                     )
                     if progress_msg:
                         await progress_msg.edit_text(text, parse_mode=ParseMode.HTML)
@@ -603,8 +574,6 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await asyncio.gather(*tasks, return_exceptions=True)
 
     elapsed = _time.time() - start_time
-    m = int(elapsed // 60)
-    s = int(elapsed % 60)
 
     # Store bad stores for deletion approval
     _pending_deletions[user.id] = {
@@ -614,63 +583,30 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "good": len(good_stores),
     }
 
-    # Build result message
-    result_text = (
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{DIVIDER}\n\n"
-        f"{e_check_done()} {BOLD('Check All Sites — Complete')}\n\n"
-        f"{e_card()} Card: {CODE(card.masked)}\n"
-        f"{e_chart()} Total stores checked: {total}\n"
-        f"⏰ Duration: {m}m {s}s\n\n"
-        f"{DIVIDER}\n"
-        f"{e_heart()} {BOLD('Charged')}: {len(charged_stores)}\n"
-    )
-    for url, price in charged_stores[:10]:
-        result_text += f"  {e_heart()} {url} — ${price}\n"
-    if len(charged_stores) > 10:
-        result_text += f"  ... and {len(charged_stores) - 10} more\n"
-
-    result_text += f"\n{e_check_done()} {BOLD('Live')}: {len(live_stores)}\n"
-    for url, msg in live_stores[:10]:
-        result_text += f"  {e_check_done()} {url} — {msg}\n"
-    if len(live_stores) > 10:
-        result_text += f"  ... and {len(live_stores) - 10} more\n"
-
-    result_text += (
-        f"\n{e_check_done()} {BOLD('Good stores')}: {len(good_stores)}\n"
-        f"{e_cross()} {BOLD('Bad/Error stores')}: {len(bad_stores)}\n\n"
-        f"{DIVIDER}\n"
+    # Build result
+    result_text = format_chkall_complete(
+        card.masked, total, elapsed,
+        charged_stores, live_stores,
+        len(good_stores), bad_stores,
     )
 
     if bad_stores:
-        result_text += (
-            f"\n{e_cross()} {BOLD('Bad stores flagged for deletion:')}\n"
-            f"Stores with errors (no products, timeout, DNS fail, etc.)\n\n"
-        )
-        # Show breakdown by error type
-        error_counts = {}
-        for _, _, reason in bad_stores:
-            error_counts[reason] = error_counts.get(reason, 0) + 1
-        for reason, count in sorted(error_counts.items(), key=lambda x: -x[1]):
-            result_text += f"  • {reason}: {count} stores\n"
-
-        result_text += (
-            f"\n{BOLD('Total to delete')}: {len(bad_stores)} stores\n\n"
-            f"Press button below to approve deletion."
-        )
+        result_text += format_chkall_bad_stores(bad_stores)
 
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton(
-                f"✅ Delete {len(bad_stores)} bad stores",
+                strip_tg_emoji(f"{e_check_done()} Delete {len(bad_stores)} bad stores"),
                 callback_data="delete_bad_stores",
             ),
-            InlineKeyboardButton("❌ Cancel", callback_data="cancel_deletion"),
+            InlineKeyboardButton(
+                strip_tg_emoji(f"{e_cross()} Cancel"),
+                callback_data="cancel_deletion",
+            ),
         ]])
         await update.message.reply_text(
             result_text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
         )
     else:
-        result_text += f"\n{e_check_done()} All stores are healthy!"
         await update.message.reply_text(result_text, parse_mode=ParseMode.HTML)
 
     logger.info(
@@ -691,8 +627,7 @@ async def handle_deletion_callback(update: Update, ctx: ContextTypes.DEFAULT_TYP
     if data == "cancel_deletion":
         _pending_deletions.pop(user.id, None)
         await query.edit_message_text(
-            f"{e_cross()} Deletion cancelled. Bad stores kept.",
-            parse_mode=ParseMode.HTML,
+            format_chkall_cancelled(), parse_mode=ParseMode.HTML,
         )
         return
 
@@ -701,7 +636,10 @@ async def handle_deletion_callback(update: Update, ctx: ContextTypes.DEFAULT_TYP
 
     pending = _pending_deletions.get(user.id)
     if not pending:
-        await query.edit_message_text(f"{e_cross()} Session expired. Run /chk_all_site again.")
+        await query.edit_message_text(
+            format_error("sᴇssɪᴏɴ ᴇxᴘɪʀᴇᴅ. ʀᴜɴ /chkall ᴀɢᴀɪɴ."),
+            parse_mode=ParseMode.HTML,
+        )
         return
 
     bad_stores = pending["bad_stores"]
@@ -727,17 +665,11 @@ async def handle_deletion_callback(update: Update, ctx: ContextTypes.DEFAULT_TYP
     ctx.bot_data["stores_5"] = loader.get_stores("5")
     ctx.bot_data["stores_10"] = loader.get_stores("10")
 
+    remaining = len(loader.get_stores("all"))
     _pending_deletions.pop(user.id, None)
 
     await query.edit_message_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{DIVIDER}\n\n"
-        f"{e_check_done()} {BOLD('Deletion Complete')}\n\n"
-        f"{e_cross()} Deleted: {deleted} bad stores\n"
-        f"{e_cross()} Failed: {failed}\n"
-        f"{e_clipboard()} Files modified: {len(files_modified)}\n\n"
-        f"{DIVIDER}\n"
-        f"{e_clipboard()} Stores remaining: {len(loader.get_stores('all'))}",
+        format_chkall_deleted(deleted, failed, len(files_modified), remaining),
         parse_mode=ParseMode.HTML,
     )
     logger.info(
