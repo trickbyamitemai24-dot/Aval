@@ -219,11 +219,11 @@ def get_user_message(exc: Exception) -> str:
 
     # Value/Type
     if isinstance(exc, (ValueError, TypeError)):
-        return "Invalid input type. Check your format."
+        return f"Invalid input type. ({type(exc).__name__}: {str(exc)})"
     if isinstance(exc, KeyError):
         return "Missing required field. Try again."
     if isinstance(exc, (IndexError, AttributeError)):
-        return "Data parsing error. Try again."
+        return f"Data parsing error. Try again. ({type(exc).__name__}: {str(exc)})"
 
     # Generic
     if "rate" in msg and "limit" in msg:

@@ -120,8 +120,12 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "ssl_error", "connection_error", "checkout_start_failed",
             "token_extraction_failed", "cart_failed", "proxy_error"
         )
-        if not any(kw in result.message for kw in error_keywords):
+        if not result or not any(kw in str(result.message) for kw in error_keywords):
             break  # Got a definitive card response
+
+    if result is None:
+        from core.checker import CheckResult
+        result = CheckResult("DEAD", "No valid stores available to check", "Shopify Payments", 0.0, "unknown", card)
 
     if not result:
         await checking_msg.edit_text(format_error("No working stores available right now."))
@@ -131,6 +135,8 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # BIN lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]
     bin_info = await bin_lookup.lookup(card.bin)
+    if not isinstance(bin_info, dict):
+        bin_info = {"bin": card.bin, "bank": "Unknown", "brand": "Unknown", "type": "Unknown", "level": "Unknown", "country": "Unknown", "flag": ""}
     flag = get_flag(bin_info.get("country", ""))
 
     # Format result
@@ -262,6 +268,8 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # BIN lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]
     bin_info = await bin_lookup.lookup(card.bin)
+    if not isinstance(bin_info, dict):
+        bin_info = {"bin": card.bin, "bank": "Unknown", "brand": "Unknown", "type": "Unknown", "level": "Unknown", "country": "Unknown", "flag": ""}
     flag = get_flag(bin_info.get("country", ""))
 
     # Format result
