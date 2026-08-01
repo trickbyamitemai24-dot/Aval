@@ -467,7 +467,9 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Parse card from args or reply
     raw_card = None
     if ctx.args:
-        raw_card = " ".join(ctx.args)
+        # Ignore the word "site" if they type "/chkall site <card>"
+        filtered_args = [a for a in ctx.args if a.lower() != "site"]
+        raw_card = " ".join(filtered_args)
     elif update.message.reply_to_message:
         raw_card = update.message.reply_to_message.text
 

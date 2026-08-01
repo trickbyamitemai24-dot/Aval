@@ -248,6 +248,7 @@ def main():
     app.add_handler(CommandHandler("charged", charged_cmd))
     app.add_handler(CommandHandler("backup", backup_cmd))
     app.add_handler(CommandHandler("chk_all_site", chk_all_site_cmd))
+    app.add_handler(CommandHandler("chkall", chk_all_site_cmd))
 
     # Callback for bad store deletion approval
     app.add_handler(CallbackQueryHandler(
