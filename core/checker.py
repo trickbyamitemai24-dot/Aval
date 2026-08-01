@@ -1183,7 +1183,10 @@ async def _submit_for_completion(session, ctx: _CheckoutContext, card: Card, vau
         "variables": {
             "attemptToken": attempt_token,
             "metafields": [],
-            "analytics": {"checkoutCompletedEventId": "", "emitConversionEvent": False},
+            "analytics": {
+                "requestUrl": ctx.checkout_url,
+                "pageId": ctx.checkout_id + "-1722881268",
+            },
             "input": {
                 "sessionInput": {"sessionToken": ctx.session_token},
                 "queueToken": ctx.queue_token,
