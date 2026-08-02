@@ -529,7 +529,7 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if pm:
                 proxy = pm.get_proxy(user.id)
 
-            result = await shopify_check(card, store_url, proxy=proxy, timeout=20)
+            result = await shopify_check(card, store_url, proxy=proxy, timeout=120)
 
             progress["checked"] += 1
             checked = progress["checked"]

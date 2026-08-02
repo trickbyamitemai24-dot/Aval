@@ -31,7 +31,7 @@ async def shopify_check(
     card: Card,
     store_url: str,
     proxy: Optional[str] = None,
-    timeout: int = 45,
+    timeout: int = 120,
     max_retries: int = 2,
 ) -> CheckResult:
     api_url = "https://cozy-abundance-production-88ca.up.railway.app/shopify"

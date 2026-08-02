@@ -158,7 +158,7 @@ async def mass_check(
     cards: list[Card],
     stores: list[str],
     workers: int,
-    timeout: int = 15,
+    timeout: int = 120,
     progress_callback: Callable[[int, int, MassCheckResult, float], Awaitable[None]] = None,
     progress_interval: float = 3.0,
     proxy_provider: Callable[[], Awaitable[str]] = None,

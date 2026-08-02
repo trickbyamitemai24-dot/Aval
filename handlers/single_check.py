@@ -112,7 +112,7 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         used.add(store)
         
         proxy = pm.get_proxy(user.id) if pm else None
-        result = await shopify_check(card, store, proxy=proxy, timeout=30)
+        result = await shopify_check(card, store, proxy=proxy, timeout=120)
         
         # If it's a structural store error, retry. If it's a real card decline/charge, break.
         error_keywords = (
