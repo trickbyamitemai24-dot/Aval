@@ -32,7 +32,7 @@ async def shopify_check(
     store_url: str,
     proxy: Optional[str] = None,
     timeout: int = 45,
-    max_retries: int = 1,
+    max_retries: int = 2,
 ) -> CheckResult:
     api_url = "https://cozy-abundance-production-88ca.up.railway.app/shopify"
     
@@ -54,6 +54,9 @@ async def shopify_check(
                         except Exception:
                             text = await r.text()
                             logger.debug("External API returned non-JSON: %s", text)
+                            if attempt < max_retries:
+                                await asyncio.sleep(2)
+                                continue
                             return CheckResult("DEAD", "api_error", "Shopify Payments", 0.0, store_url, card)
                             
                         if not isinstance(data, dict):
@@ -72,6 +75,12 @@ async def shopify_check(
                             msg = f"site_error: {msg}"
                             
                         return CheckResult(status, msg, gw, price, store_url, card)
+                    elif r.status in (502, 503, 504, 429):
+                        logger.debug("External API %s (attempt %d/%d)", r.status, attempt + 1, max_retries + 1)
+                        if attempt < max_retries:
+                            await asyncio.sleep(2)
+                            continue
+                        return CheckResult("DEAD", f"api_http_error_{r.status}", "Shopify Payments", 0.0, store_url, card)
                     else:
                         text = await r.text()
                         logger.debug("External API error %s: %s", r.status, text)

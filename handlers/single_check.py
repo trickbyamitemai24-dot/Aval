@@ -120,7 +120,7 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "ssl_error", "connection_error", "checkout_start_failed",
             "token_extraction_failed", "cart_failed", "proxy_error",
             "site_error", "failed_to_fetch", "unknown_error",
-            "HTTP 4", "HTTP 5",
+            "HTTP 4", "HTTP 5", "api_http_error", "api_error",
         )
         if not result or not any(kw in str(result.message) for kw in error_keywords):
             break  # Got a definitive card response

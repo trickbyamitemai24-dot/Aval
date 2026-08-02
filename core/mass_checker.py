@@ -352,7 +352,7 @@ async def mass_check(
             
             for attempt in range(max_store_retries):
                 check_result = await shopify_check(card, store, proxy=proxy, timeout=timeout, max_retries=0)
-                is_network_error = any(kw in check_result.message for kw in ("timeout", "dns_error", "proxy_error", "ssl_error", "connection_error", "session_init_failed", "no_products_found", "cart_failed", "checkout_start_failed", "token_extraction_failed", "site_error", "failed_to_fetch", "unknown_error", "HTTP 4", "HTTP 5"))
+                is_network_error = any(kw in check_result.message for kw in ("timeout", "dns_error", "proxy_error", "ssl_error", "connection_error", "session_init_failed", "no_products_found", "cart_failed", "checkout_start_failed", "token_extraction_failed", "site_error", "failed_to_fetch", "unknown_error", "HTTP 4", "HTTP 5", "api_http_error", "api_error"))
                 
                 # Detect captcha/checkpoint for health scoring
                 is_captcha = any(kw in check_result.message for kw in ("captcha", "checkpoint", "datadome"))
