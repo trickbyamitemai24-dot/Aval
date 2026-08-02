@@ -84,11 +84,11 @@ class BinLookup:
                     if datetime.utcnow() - dt <= CACHE_TTL:
                         info = {
                             "bin": cached["bin"],
-                            "bank": cached["bank"] or "Unknown",
-                            "brand": cached["brand"] or "Unknown",
-                            "type": cached["type"] or "Unknown",
-                            "level": cached["level"] or "Unknown",
-                            "country": cached["country"] or "Unknown",
+                            "bank": self._clean_cached(cached["bank"]),
+                            "brand": self._clean_cached(cached["brand"]),
+                            "type": self._clean_cached(cached["type"]),
+                            "level": self._clean_cached(cached["level"]),
+                            "country": self._clean_cached(cached["country"]),
                             "flag": cached["flag"] or "",
                         }
                         self._mem_cache[bin_code] = info
@@ -165,13 +165,42 @@ class BinLookup:
         # Generic: try to extract known fields
         return {
             "bin": bin_code,
-            "bank": str(data.get("bank", data.get("issuer", data.get("Issuer", "Unknown")))),
-            "brand": str(data.get("brand", data.get("scheme", data.get("Scheme", "Unknown")))).upper(),
-            "type": str(data.get("type", data.get("Type", "Unknown"))).upper(),
-            "level": str(data.get("level", data.get("Level", "Unknown"))).upper(),
-            "country": str(data.get("country", data.get("Country", "Unknown"))),
+            "bank": self._extract_str(data, ("bank", "issuer", "Issuer"), "Unknown"),
+            "brand": self._extract_str(data, ("brand", "scheme", "Scheme"), "Unknown").upper(),
+            "type": self._extract_str(data, ("type", "Type"), "Unknown").upper(),
+            "level": self._extract_str(data, ("level", "Level"), "Unknown").upper(),
+            "country": self._extract_str(data, ("country", "Country"), "Unknown"),
             "flag": "",
         }
+
+    @staticmethod
+    def _extract_str(data: dict, keys: tuple, default: str = "Unknown") -> str:
+        """Extract a string value from nested dict, handling dict/None/empty values."""
+        for k in keys:
+            val = data.get(k)
+            if val is None:
+                continue
+            if isinstance(val, dict):
+                # Try common sub-keys for nested objects
+                for sub in ("name", "Name", "title", "Title"):
+                    if sub in val:
+                        return str(val[sub]) or default
+                # Empty dict — skip
+                continue
+            s = str(val).strip()
+            if s and s != "{}":
+                return s
+        return default
+
+    @staticmethod
+    def _clean_cached(val) -> str:
+        """Clean a cached DB value — convert None, empty, or '{}' to 'Unknown'."""
+        if not val:
+            return "Unknown"
+        s = str(val).strip()
+        if s in ("", "{}", "None"):
+            return "Unknown"
+        return s
 
     def _guess_info(self, bin_code: str) -> dict:
         """Fallback: guess brand from first digit. Returns generic info."""
