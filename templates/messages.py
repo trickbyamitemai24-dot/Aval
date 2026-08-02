@@ -19,6 +19,19 @@ from templates.emojis import (
     e_cross, e_refresh, e_check_done, e_clipboard,
     e_hourglass, e_smile, e_hourglass_v2, e_calendar, e_warning_alt,
     e_gift,
+    # New premium emojis
+    e_rocket, e_star, e_sparkles, e_crystal, e_comet,
+    e_skull, e_target, e_hundred, e_chart_up,
+    e_money_bag, e_cash_fly, e_bank, e_dollar,
+    e_globe_us, e_satellite, e_shield, e_key, e_gear,
+    e_heart_blue, e_heart_pink, e_devil, e_robot, e_user,
+    e_trophy, e_bell, e_pin,
+    e_green, e_red, e_yellow,
+    e_alert, e_earth, e_ribbon, e_party, e_bulb, e_info,
+    e_search, e_lock, e_unlock, e_link, e_pc,
+    e_play, e_pause, e_stop_btn, e_broom, e_trash, e_new,
+    e_folder, e_inbox, e_outbox, e_ticket, e_joker, e_timer,
+    e_flag_us, e_stop,
 )
 
 D  = "━━━━━━━━━━━━━━━━━━━━━━"
@@ -53,7 +66,7 @@ def hdr() -> str:
 
 def ftr() -> str:
     """Standard footer."""
-    return f"{D}\n{e_mailbox()} {I('Owner: @rayzenqx')}"
+    return f"{D}\n{e_crown()} {I('Owner: @rayzenqx')} {e_heart_blue()}"
 
 
 def grp(n: str) -> str:
@@ -85,36 +98,37 @@ def format_start(tier, card_limit, checks=0, charged=0, live=0):
     stats_section = ""
     if checks > 0:
         stats_section = (
-            f"\n{e_chart()} 𝒀𝑶𝑼𝑹 𝑺𝑻𝑨𝑻𝑺 {e_chart()}\n{DS}\n"
-            f"{e_card()}  {B('ᴄʜᴇᴄᴋs')}   : {checks}\n"
-            f"{e_heart()}  {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}\n"
-            f"{e_smile()}  {B('ʟɪᴠᴇ')}    : {live}\n\n"
+            f"\n{e_chart_up()} 𝒀𝑶𝑼𝑹 𝑺𝑻𝑨𝑻𝑺 {e_chart_up()}\n{DS}\n"
+            f"{e_target()}  {B('ᴄʜᴇᴄᴋs')}   : {checks}\n"
+            f"{e_money_bag()}  {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}\n"
+            f"{e_green()}  {B('ʟɪᴠᴇ')}    : {live}\n\n"
         )
 
     return (
         f"{hdr()}\n\n"
-        f"{frame('𝑾𝑬𝑳𝑪𝑶𝑴𝑬')}\n\n"
-        f"{e_free()}  {B('ᴛɪᴇʀ')}    : {tier}\n"
+        f"{frame('𝑾𝑬𝑳𝑪𝑶𝑴𝑬')}\n"
+        f"   {e_sparkles()} {e_rocket()} {e_sparkles()}\n\n"
+        f"{e_crown()}  {B('ᴛɪᴇʀ')}    : {tier}\n"
         f"{e_chart()} {B('ʟɪᴍɪᴛ')}   : {card_limit} ᴄᴀʀᴅs /ʀᴜɴ\n"
-        f"{e_gem()}  {B('ʀᴇᴅᴇᴇᴍ')}  : /redeem &lt;key&gt;\n\n"
+        f"{e_key()}  {B('ʀᴇᴅᴇᴇᴍ')}  : /redeem &lt;key&gt;\n\n"
         f"{stats_section}"
         f"{e_fire()} 𝑪𝑶𝑴𝑴𝑨𝑵𝑫𝑺 {e_fire()}\n{DS}\n"
         f"{e_card()}  /sh {I('cc')}     — Single Check (Shopify)\n"
         f"{e_card()}  /st {I('cc')}     — Single Check (Stripe)\n"
         f"{e_card()}  /amz {I('cc')}    — Single Check (Amazon)\n"
-        f"{e_card()}  /bin {I('bin')}   — BIN Lookup\n"
-        f"{e_card()}  /ccgen           — Generate valid cards\n"
-        f"{e_memo()}  /chk      — Mass Check (.txt)\n"
-        f"{e_memo()}  /massamz  — Mass Amazon (.txt)\n"
-        f"{e_check()} /resume   — Resume interrupted\n\n"
-        f"{e_mobile()} 𝑷𝑹𝑶𝑿𝑰𝑶𝑺 {e_mobile()}\n{DS}\n"
-        f"{e_check()}  /addproxy   — Add proxies\n"
-        f"{e_check()}  /proxy      — Check &amp; clean\n"
-        f"{e_check()}  /clearproxy — Clear all\n\n"
+        f"{e_search()}  /bin {I('bin')}   — BIN Lookup\n"
+        f"{e_joker()}  /ccgen           — Generate valid cards\n"
+        f"{e_rocket()}  /chk      — Mass Check (.txt)\n"
+        f"{e_rocket()}  /massamz  — Mass Amazon (.txt)\n"
+        f"{e_play()} /resume   — Resume interrupted\n\n"
+        f"{e_satellite()} 𝑷𝑹𝑶𝑿𝑰𝑶𝑺 {e_satellite()}\n{DS}\n"
+        f"{e_shield()}  /addproxy   — Add proxies\n"
+        f"{e_gear()}  /proxy      — Check &amp; clean\n"
+        f"{e_trash()}  /clearproxy — Clear all\n\n"
         f"{e_cart()} 𝑨𝑴𝑨𝒁𝑶𝑵 𝑪𝑶𝑶𝑲𝑰𝑬𝑺 {e_cart()}\n{DS}\n"
-        f"{e_check()}  /setcookies — Set cookies\n"
-        f"{e_check()}  /cookies    — View status\n"
-        f"{e_check()}  /clearcookies — Clear\n\n"
+        f"{e_lock()}  /setcookies — Set cookies\n"
+        f"{e_info()}  /cookies    — View status\n"
+        f"{e_broom()}  /clearcookies — Clear\n\n"
         f"{ftr()}"
     )
 
@@ -124,12 +138,12 @@ def format_start(tier, card_limit, checks=0, charged=0, live=0):
 # ═════════════════════════════════════════════════════════════════════════
 def format_single_check(status, card, gateway, response, price, bin_info, flag=""):
     sm = {
-        "CHARGED":  (e_heart(),     "𝑪𝑯𝑨𝑹𝑮𝑬𝑫"),
-        "LIVE":     (e_check_done(),"𝑳𝑰𝑽𝑶 𝑪𝑨𝑹𝑫"),
-        "LIVE_3DS": (e_check_done(),"𝑳𝑰𝑽𝑶 3DS"),
-        "DEAD":     (e_warning(),   "𝑫𝑬𝑨𝑫 𝑪𝑨𝑹𝑫"),
+        "CHARGED":  (e_money_bag(),  "𝑪𝑯𝑨𝑹𝑮𝑬𝑫"),
+        "LIVE":     (e_check_done(), "𝑳𝑰𝑽𝑬 𝑪𝑨𝑹𝑫"),
+        "LIVE_3DS": (e_check_done(), "𝑳𝑰𝑽𝑬 3DS"),
+        "DEAD":     (e_skull(),      "𝑫𝑬𝑨𝑫 𝑪𝑨𝑹𝑫"),
     }
-    ei, label = sm.get(status, (e_warning(), "𝑫𝑬𝑨𝑫 𝑪𝑨𝑹𝑫"))
+    ei, label = sm.get(status, (e_skull(), "𝑫𝑬𝑨𝑫 𝑪𝑨𝑹𝑫"))
 
     if status in ("CHARGED", "LIVE", "LIVE_3DS"):
         cc_show = grp(card.number)
@@ -143,14 +157,14 @@ def format_single_check(status, card, gateway, response, price, bin_info, flag="
         f"{hdr()}\n\n"
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
-        f"{e_card()}   {B('ᴅᴄ')}       : {C(cc_full)}\n"
-        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gateway}\n"
+        f"{e_card()}   {B('ᴄᴄ')}       : {C(cc_full)}\n"
+        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gateway}\n"
         f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {sc(response)}\n"
-        f"{e_money()}  {B('ᴘʀɪᴄᴇ')}    : ${price}\n\n"
+        f"{e_dollar()}  {B('ᴘʀɪᴄᴇ')}    : ${price}\n\n"
         f"{DS}\n"
-        f"{e_card()}   {B('ʙɪɴ')}      : {bn}\n"
-        f"{e_globe()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
-        f"{e_globe_flag()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n\n"
+        f"{e_search()}   {B('ʙɪɴ')}      : {bn}\n"
+        f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
+        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n\n"
         f"{ftr()}"
     )
 
@@ -162,11 +176,11 @@ def format_bin(bin_info, flag=""):
     return (
         f"{hdr()}\n\n{frame('ʙɪɴ ʟᴏᴏᴋᴜᴘ')}\n\n"
         f"{e_card()}      {B('ʙɪɴ')}     : {bin_info.get('bin','?')}\n"
-        f"🏦      {B('ʙᴀɴᴋ')}   : {bin_info.get('bank','?')}\n"
-        f"{e_card()}      {B('ʙʀᴀɴᴅ')}  : {bin_info.get('brand','?')}\n"
+        f"{e_bank()}      {B('ʙᴀɴᴋ')}   : {bin_info.get('bank','?')}\n"
+        f"{e_shield()}      {B('ʙʀᴀɴᴅ')}  : {bin_info.get('brand','?')}\n"
         f"{e_chart()}     {B('ᴛʏᴘᴇ')}   : {bin_info.get('type','?')}\n"
-        f"{e_clipboard()} {B('ʟᴇᴠᴇʟ')}  : {bin_info.get('level','?')}\n"
-        f"{e_globe_flag()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n\n"
+        f"{e_star()} {B('ʟᴇᴠᴇʟ')}  : {bin_info.get('level','?')}\n"
+        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n\n"
         f"{ftr()}"
     )
 
@@ -185,21 +199,21 @@ def format_help():
         f"{e_card()}  /sh {I('cc')}      — Single Check (Shopify)\n"
         f"{e_card()}  /st {I('cc')}      — Single Check (Stripe)\n"
         f"{e_card()}  /amz {I('cc')}     — Single Check (Amazon)\n"
-        f"{e_card()}  /bin {I('bin')}    — BIN Lookup\n"
-        f"{e_card()}  /ccgen            — Generate Luhn-valid cards\n"
-        f"{e_memo()}  /chk       — Mass Check (.txt)\n"
-        f"{e_memo()}  /massamz   — Mass Amazon Check (.txt)\n"
-        f"{e_check()} /resume    — Resume interrupted\n"
-        f"{e_gem()}  /redeem {I('key')}  — Redeem a key\n"
-        f"{e_clipboard()} /plans     — View pricing\n\n"
-        f"{e_mobile()} 𝑷𝑹𝑶𝑿𝑰𝑶𝑺 {e_mobile()}\n{DS}\n"
-        f"   /addproxy   — Add proxies\n"
-        f"   /proxy      — Check &amp; clean\n"
-        f"   /clearproxy — Clear all\n\n"
+        f"{e_search()}  /bin {I('bin')}    — BIN Lookup\n"
+        f"{e_joker()}  /ccgen            — Generate Luhn-valid cards\n"
+        f"{e_rocket()}  /chk       — Mass Check (.txt)\n"
+        f"{e_rocket()}  /massamz   — Mass Amazon Check (.txt)\n"
+        f"{e_play()} /resume    — Resume interrupted\n"
+        f"{e_key()}  /redeem {I('key')}  — Redeem a key\n"
+        f"{e_gem()} /plans     — View pricing\n\n"
+        f"{e_satellite()} 𝑷𝑹𝑶𝑿𝑰𝑶𝑺 {e_satellite()}\n{DS}\n"
+        f"{e_shield()}   /addproxy   — Add proxies\n"
+        f"{e_gear()}   /proxy      — Check &amp; clean\n"
+        f"{e_trash()}   /clearproxy — Clear all\n\n"
         f"{e_cart()} 𝑨𝑴𝑨𝒁𝑶𝑵 𝑪𝑶𝑶𝑲𝑰𝑬𝑺 {e_cart()}\n{DS}\n"
-        f"   /setcookies {I('cookies')} — Set Amazon cookies\n"
-        f"   /cookies             — View cookie status\n"
-        f"   /clearcookies        — Clear cookies\n\n"
+        f"{e_lock()}   /setcookies {I('cookies')} — Set Amazon cookies\n"
+        f"{e_info()}   /cookies             — View cookie status\n"
+        f"{e_broom()}   /clearcookies        — Clear cookies\n\n"
         f"{ftr()}"
     )
 
@@ -238,9 +252,9 @@ def format_tier_exceeded(tier, limit):
 def format_checking(card):
     return (
         f"{hdr()}\n\n"
-        f"{e_refresh()} {B('ᴄʜᴇᴄᴋɪɴɢ ᴄᴀʀᴅ...')}\n"
+        f"{e_search()} {B('ᴄʜᴇᴄᴋɪɴɢ ᴄᴀʀᴅ...')}\n"
         f"{e_card()} {C(grp_masked(card))}\n\n"
-        f"{e_hourglass()} {I('ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...')}\n\n{D}"
+        f"{e_hourglass_v2()} {I('ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...')}\n\n{D}"
     )
 
 
@@ -250,14 +264,14 @@ def format_checking(card):
 def format_mass_check_options(c5, c10, call, cc, warn="", chq=0, cv40=0, csureship=0, call_combined=0):
     t = (
         f"{hdr()}\n\n{frame('ᴍᴀss ᴄʜᴇᴄᴋ')}\n\n"
-        f"📦  {B('sᴏᴜʀᴄᴇ')} : Global Sites\n"
-        f"sᴇʟᴇᴄᴛ sɪᴛᴇs ᴘʀɪᴄᴇ ʀᴀɴɢᴇ:\n\n"
+        f"{e_folder()}  {B('sᴏᴜʀᴄᴇ')} : Global Sites\n"
+        f"{e_target()} sᴇʟᴇᴄᴛ sɪᴛᴇs ᴘʀɪᴄᴇ ʀᴀɴɢᴇ:\n\n"
         f"   • $1 − $5        ({c5})\n"
         f"   • $1 − $10       ({c10})\n"
         f"   • Working         ({call})\n"
-        f"   • {e_check_done()} HQ            ({chq})\n"
+        f"   • {e_gem()} HQ            ({chq})\n"
         f"   • {e_lightning()} V40            ({cv40})\n"
-        f"   • {e_lightning()} Sureship     ({csureship})\n"
+        f"   • {e_shield()} Sureship     ({csureship})\n"
         f"   • {e_globe()} ALL Sites    ({call_combined})\n\n"
         f"{e_card()}  {B('ᴄᴀʀᴅs')}  : {cc}\n"
     )
@@ -268,7 +282,7 @@ def format_mass_check_options(c5, c10, call, cc, warn="", chq=0, cv40=0, csuresh
 
 def format_mass_check_limit_warning(total, limit):
     lbl = "Free" if limit == 500 else "Tier"
-    return f"🫦 {B(str(total))} ᴄᴀʀᴅs — {lbl} ʟɪᴍɪᴛ {B(str(limit))}. Checking first {B(str(limit))}."
+    return f"{e_warning_alt()} {B(str(total))} ᴄᴀʀᴅs — {lbl} ʟɪᴍɪᴛ {B(str(limit))}. Checking first {B(str(limit))}."
 
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -297,15 +311,15 @@ def format_mass_check_progress(pr, total, checked, duration, charged, live, dead
     return (
         f"{hdr()}\n\n{frame('ᴍᴀss ᴄʜᴇᴄᴋ')}\n\n"
         f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : #Mass_Shopify\n"
-        f"{e_money()}  {B('ʀᴀɴɢᴇ')}      : {pr}\n"
+        f"{e_dollar()}  {B('ʀᴀɴɢᴇ')}      : {pr}\n"
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n\n"
         f"{bar(pct)}\n"
         f"   {checked}/{total} ({pct_num}%)\n"
-        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}{eta_str}\n\n"
+        f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}{eta_str}\n\n"
         f"{DS}\n"
-        f"{e_heart()}   {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}  {ratio(charged, total)}\n"
-        f"{e_smile()}   {B('ʟɪᴠᴇ')}    : {live}  {ratio(live, total)}\n"
-        f"{e_warning()} {B('ᴅᴇᴀᴅ')}    : {dead}  {ratio(dead, total)}\n\n"
+        f"{e_money_bag()}   {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}  {ratio(charged, total)}\n"
+        f"{e_green()}   {B('ʟɪᴠᴇ')}    : {live}  {ratio(live, total)}\n"
+        f"{e_skull()}   {B('ᴅᴇᴀᴅ')}    : {dead}  {ratio(dead, total)}\n\n"
         f"{D}"
     )
 
@@ -319,15 +333,15 @@ def format_mass_check_complete(pr, total, duration, charged, live, dead):
     return (
         f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
         f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : #Mass_Shopify\n"
-        f"{e_money()}  {B('ʀᴀɴɢᴇ')}      : {pr}\n"
+        f"{e_dollar()}  {B('ʀᴀɴɢᴇ')}      : {pr}\n"
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n"
-        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
+        f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
         f"{DS}\n"
-        f"{e_heart()}   {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}  {ratio(charged, total)}\n"
-        f"{e_smile()}   {B('ʟɪᴠᴇ')}    : {live}  {ratio(live, total)}\n"
-        f"{e_warning()} {B('ᴅᴇᴀᴅ')}    : {dead}  {ratio(dead, total)}\n\n"
+        f"{e_money_bag()}   {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}  {ratio(charged, total)}\n"
+        f"{e_green()}   {B('ʟɪᴠᴇ')}    : {live}  {ratio(live, total)}\n"
+        f"{e_skull()}   {B('ᴅᴇᴀᴅ')}    : {dead}  {ratio(dead, total)}\n\n"
         f"{DS}\n"
-        f"📈  {B('sᴜᴄᴄᴇss')}  : {rate}%  {ratio(success, total, 12)}\n\n"
+        f"{e_chart_up()}  {B('sᴜᴄᴄᴇss')}  : {rate}%  {ratio(success, total, 12)}\n\n"
         f"{ftr()}"
     )
 
@@ -338,7 +352,7 @@ def format_mass_check_complete(pr, total, duration, charged, live, dead):
 def format_charged_cards_list(cards):
     lines = [f"{hdr()}\n\n{frame(f'ᴄʜᴀʀɢᴇᴅ ({len(cards)})')}\n"]
     for i, (card, r) in enumerate(cards, 1):
-        lines.append(f"{e_heart()} {i}. {C(card.raw)}")
+        lines.append(f"{e_money_bag()} {i}. {C(card.raw)}")
         lines.append(f"   {r.gateway} | ${r.price}")
     lines.append(f"\n{ftr()}")
     return "\n".join(lines)
@@ -347,7 +361,7 @@ def format_charged_cards_list(cards):
 def format_live_cards_list(cards):
     lines = [f"{hdr()}\n\n{frame(f'ʟɪᴠᴇ ({len(cards)})')}\n"]
     for i, (card, r) in enumerate(cards, 1):
-        lines.append(f"{e_check_done()} {i}. {C(card.raw)}")
+        lines.append(f"{e_green()} {i}. {C(card.raw)}")
         lines.append(f"   {sc(r.message)}")
     lines.append(f"\n{ftr()}")
     return "\n".join(lines)
@@ -629,8 +643,8 @@ def format_amazon_check(status, card, response, bin_info=None, flag=""):
     status: 'APPROVED' | 'DECLINED' | 'ERROR'
     """
     sm = {
-        "APPROVED": (e_heart(),      "𝑨𝑷𝑷𝑹𝑶𝑽𝑬𝑫"),
-        "DECLINED": (e_warning(),   "𝑫𝑬𝑪𝑳𝑰𝑵𝑬𝑫"),
+        "APPROVED": (e_money_bag(),  "𝑨𝑷𝑷𝑹𝑶𝑽𝑬𝑫"),
+        "DECLINED": (e_skull(),     "𝑫𝑬𝑪𝑳𝑰𝑵𝑬𝑫"),
         "ERROR":    (e_warning(),   "ᴇʀʀᴏʀ"),
     }
     ei, label = sm.get(status, (e_warning(), "ᴇʀʀᴏʀ"))
@@ -647,9 +661,9 @@ def format_amazon_check(status, card, response, bin_info=None, flag=""):
         bn = f"{bin_info.get('brand','?')} − {bin_info.get('type','?')} − {bin_info.get('level','?')}"
         bin_section = (
             f"{DS}\n"
-            f"{e_card()}   {B('ʙɪɴ')}      : {bn}\n"
-            f"{e_globe()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
-            f"{e_globe_flag()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n"
+            f"{e_search()}   {B('ʙɪɴ')}      : {bn}\n"
+            f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
+            f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n"
         )
 
     return (
@@ -657,7 +671,7 @@ def format_amazon_check(status, card, response, bin_info=None, flag=""):
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
         f"{e_card()}   {B('ᴄᴄ')}       : {C(cc_full)}\n"
-        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : Amazon Auth\n"
+        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : Amazon Auth\n"
         f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {sc(response)}\n\n"
         f"{bin_section}"
         f"{ftr()}"
@@ -668,9 +682,9 @@ def format_amazon_checking(card):
     """Checking message for Amazon."""
     return (
         f"{hdr()}\n\n"
-        f"{e_refresh()} {B('ᴄʜᴇᴄᴋɪɴɢ ᴏɴ ᴀᴍᴀᴢᴏɴ...')}\n"
+        f"{e_search()} {B('ᴄʜᴇᴄᴋɪɴɢ ᴏɴ ᴀᴍᴀᴢᴏɴ...')}\n"
         f"{e_card()} {C(grp_masked(card))}\n\n"
-        f"{e_hourglass()} {I('ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...')}\n\n{D}"
+        f"{e_hourglass_v2()} {I('ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...')}\n\n{D}"
     )
 
 
@@ -678,9 +692,9 @@ def format_amazon_mass_options(card_count):
     """Mass Amazon check options (before starting)."""
     return (
         f"{hdr()}\n\n{frame('ᴍᴀss ᴀᴍᴀᴢᴏɴ')}\n\n"
-        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')} : Amazon Auth (Leviatan)\n"
+        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')} : Amazon Auth (Leviatan)\n"
         f"{e_card()}   {B('ᴄᴀʀᴅs')}   : {card_count}\n\n"
-        f"{e_refresh()} {B('sᴛᴀʀᴛɪɴɢ ᴍᴀss ᴄʜᴇᴄᴋ...')}\n\n{D}"
+        f"{e_rocket()} {B('sᴛᴀʀᴛɪɴɢ ᴍᴀss ᴄʜᴇᴄᴋ...')}\n\n{D}"
     )
 
 
@@ -707,15 +721,15 @@ def format_amazon_mass_progress(total, checked, duration, approved, declined, er
 
     return (
         f"{hdr()}\n\n{frame('ᴍᴀss ᴀᴍᴀᴢᴏɴ')}\n\n"
-        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : Amazon Auth\n"
+        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : Amazon Auth\n"
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n\n"
         f"{bar(pct)}\n"
         f"   {checked}/{total} ({pct_num}%)\n"
-        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}{eta_str}\n\n"
+        f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}{eta_str}\n\n"
         f"{DS}\n"
-        f"{e_heart()}     {B('ᴀᴘᴘʀᴏᴠᴇᴅ')}  : {approved}  {ratio(approved, total)}\n"
-        f"{e_warning()}   {B('ᴅᴇᴄʟɪɴᴇᴅ')} : {declined}  {ratio(declined, total)}\n"
-        f"{e_cross()}     {B('ᴇʀʀᴏʀ')}     : {errors}  {ratio(errors, total)}\n\n"
+        f"{e_money_bag()}     {B('ᴀᴘᴘʀᴏᴠᴇᴅ')}  : {approved}  {ratio(approved, total)}\n"
+        f"{e_skull()}   {B('ᴅᴇᴄʟɪɴᴇᴅ')} : {declined}  {ratio(declined, total)}\n"
+        f"{e_warning()}     {B('ᴇʀʀᴏʀ')}     : {errors}  {ratio(errors, total)}\n\n"
         f"{D}"
     )
 
@@ -725,15 +739,15 @@ def format_amazon_mass_complete(total, duration, approved, declined, errors):
     rate = int((approved / total * 100)) if total > 0 else 0
     return (
         f"{hdr()}\n\n{frame('ᴀᴍᴀᴢᴏɴ ᴄʜᴇᴄᴋ ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
-        f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : Amazon Auth\n"
+        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : Amazon Auth\n"
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n"
-        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
+        f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
         f"{DS}\n"
-        f"{e_heart()}     {B('ᴀᴘᴘʀᴏᴠᴇᴅ')}  : {approved}  {ratio(approved, total)}\n"
-        f"{e_warning()}   {B('ᴅᴇᴄʟɪɴᴇᴅ')} : {declined}  {ratio(declined, total)}\n"
-        f"{e_cross()}     {B('ᴇʀʀᴏʀ')}     : {errors}  {ratio(errors, total)}\n\n"
+        f"{e_money_bag()}     {B('ᴀᴘᴘʀᴏᴠᴇᴅ')}  : {approved}  {ratio(approved, total)}\n"
+        f"{e_skull()}   {B('ᴅᴇᴄʟɪɴᴇᴅ')} : {declined}  {ratio(declined, total)}\n"
+        f"{e_warning()}     {B('ᴇʀʀᴏʀ')}     : {errors}  {ratio(errors, total)}\n\n"
         f"{DS}\n"
-        f"📈  {B('ᴀᴘᴘʀᴏᴠᴀʟ ʀᴀᴛᴇ')} : {rate}%\n\n"
+        f"{e_chart_up()}  {B('ᴀᴘᴘʀᴏᴠᴀʟ ʀᴀᴛᴇ')} : {rate}%\n\n"
         f"{ftr()}"
     )
 
@@ -742,7 +756,7 @@ def format_amazon_approved_list(cards):
     """List of approved Amazon cards."""
     lines = [f"{hdr()}\n\n{frame(f'ᴀᴍᴀᴢᴏɴ ᴀᴘᴘʀᴏᴠᴇᴅ ({len(cards)})')}\n"]
     for i, (card, response) in enumerate(cards, 1):
-        lines.append(f"{e_heart()} {i}. {C(card.raw)}")
+        lines.append(f"{e_money_bag()} {i}. {C(card.raw)}")
         lines.append(f"   {sc(response)}")
     lines.append(f"\n{ftr()}")
     return "\n".join(lines)
@@ -789,12 +803,12 @@ def format_chkall_progress(card_masked, checked, total, duration,
         f"{e_globe()}  {B('sᴛᴏʀᴇs')}    : {total}\n\n"
         f"{bar(pct)}\n"
         f"   {checked}/{total} ({pct_num}%)\n"
-        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {m}m {s}s{eta_str}\n\n"
+        f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {m}m {s}s{eta_str}\n\n"
         f"{DS}\n"
-        f"{e_heart()}         {B('ᴄʜᴀʀɢᴇᴅ')}  : {charged}  {ratio(charged, total)}\n"
-        f"{e_check_done()}   {B('ʟɪᴠᴇ')}     : {live}  {ratio(live, total)}\n"
+        f"{e_money_bag()}         {B('ᴄʜᴀʀɢᴇᴅ')}  : {charged}  {ratio(charged, total)}\n"
+        f"{e_green()}   {B('ʟɪᴠᴇ')}     : {live}  {ratio(live, total)}\n"
         f"{e_check_done()}   {B('ɢᴏᴏᴅ')}     : {good}  {ratio(good, total)}\n"
-        f"{e_cross()}         {B('ʙᴀᴅ')}      : {bad}  {ratio(bad, total)}\n\n"
+        f"{e_skull()}         {B('ʙᴀᴅ')}      : {bad}  {ratio(bad, total)}\n\n"
         f"{D}"
     )
 
@@ -812,21 +826,21 @@ def format_chkall_complete(card_masked, total, duration,
         f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴀʟʟ sɪᴛᴇs — ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
         f"{e_card()}   {B('ᴄᴀʀᴅ')}       : {C(card_masked)}\n"
         f"{e_globe()}  {B('sᴛᴏʀᴇs')}     : {total}\n"
-        f"{e_hourglass()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}     : {m}m {s}s\n\n"
+        f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}     : {m}m {s}s\n\n"
         f"{DS}\n"
     )
 
     # Charged section
-    t += f"{e_heart()}   {B('ᴄʜᴀʀɢᴇᴅ')}  : {len(charged_stores)}\n"
+    t += f"{e_money_bag()}   {B('ᴄʜᴀʀɢᴇᴅ')}  : {len(charged_stores)}\n"
     for url, price in charged_stores[:10]:
-        t += f"   {e_heart()} {url} — ${price}\n"
+        t += f"   {e_money_bag()} {url} — ${price}\n"
     if len(charged_stores) > 10:
         t += f"   {I(f'... ᴀɴᴅ {len(charged_stores) - 10} ᴍᴏʀᴇ')}\n"
 
     # Live section
-    t += f"\n{e_check_done()} {B('ʟɪᴠᴇ')}     : {len(live_stores)}\n"
+    t += f"\n{e_green()} {B('ʟɪᴠᴇ')}     : {len(live_stores)}\n"
     for url, msg in live_stores[:10]:
-        t += f"   {e_check_done()} {url} — {sc(msg)}\n"
+        t += f"   {e_green()} {url} — {sc(msg)}\n"
     if len(live_stores) > 10:
         t += f"   {I(f'... ᴀɴᴅ {len(live_stores) - 10} ᴍᴏʀᴇ')}\n"
 
@@ -834,12 +848,12 @@ def format_chkall_complete(card_masked, total, duration,
     t += (
         f"\n{DS}\n"
         f"{e_check_done()} {B('ɢᴏᴏᴅ sᴛᴏʀᴇs')}  : {good_count}  {ratio(good_count, total)}\n"
-        f"{e_cross()}   {B('ʙᴀᴅ sᴛᴏʀᴇs')}   : {len(bad_stores)}  {ratio(len(bad_stores), total)}\n"
-        f"📈  {B('sᴜᴄᴄᴇss')}      : {rate}%  {ratio(success, total, 12)}\n\n"
+        f"{e_skull()}   {B('ʙᴀᴅ sᴛᴏʀᴇs')}   : {len(bad_stores)}  {ratio(len(bad_stores), total)}\n"
+        f"{e_chart_up()}  {B('sᴜᴄᴄᴇss')}      : {rate}%  {ratio(success, total, 12)}\n\n"
     )
 
     if not bad_stores:
-        t += f"{e_check_done()} {B('ᴀʟʟ sᴛᴏʀᴇs ᴀʀᴇ ʜᴇᴀʟᴛʜʏ!')}\n\n"
+        t += f"{e_sparkles()} {B('ᴀʟʟ sᴛᴏʀᴇs ᴀʀᴇ ʜᴇᴀʟᴛʜʏ!')}\n\n"
 
     t += ftr()
     return t
