@@ -100,8 +100,8 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     used = set()
     pm = ctx.bot_data.get("proxy_manager")
     
-    # Retry up to 3 stores if there's a store-level error (not a card error)
-    max_store_retries = 3
+    # Retry up to 5 stores if there's a store-level error (not a card error)
+    max_store_retries = 5
     result = None
     store = None
     
@@ -114,20 +114,13 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         proxy = pm.get_proxy(user.id) if pm else None
         result = await shopify_check(card, store, proxy=proxy, timeout=120)
         
-        # If it's a structural store error, retry. If it's a real card decline/charge, break.
-        error_keywords = (
-            "no_products_found", "session_init_failed", "timeout", "dns_error",
-            "ssl_error", "connection_error", "checkout_start_failed",
-            "token_extraction_failed", "cart_failed", "proxy_error",
-            "site_error", "failed_to_fetch", "unknown_error",
-            "HTTP 4", "HTTP 5", "api_http_error", "api_error",
-        )
-        if not result or not any(kw in str(result.message) for kw in error_keywords):
-            break  # Got a definitive card response
+        # SITE_ERROR = store/infra problem → rotate store and retry
+        if result and result.status != "SITE_ERROR":
+            break  # Got a definitive card response (CHARGED/LIVE/LIVE_3DS/DEAD)
 
-    if result is None:
+    if result is None or result.status == "SITE_ERROR":
         from core.checker import CheckResult
-        result = CheckResult("DEAD", "No valid stores available to check", "Shopify Payments", 0.0, "unknown", card)
+        result = CheckResult("DEAD", "All stores returned errors — try again later", "Shopify Payments", 0.0, store or "unknown", card)
 
     if not result:
         await checking_msg.edit_text(format_error("No working stores available right now."))

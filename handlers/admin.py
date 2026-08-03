@@ -534,16 +534,8 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             progress["checked"] += 1
             checked = progress["checked"]
 
-            # Classify store health
-            error_keywords = (
-                "no_products_found", "session_init_failed", "timeout",
-                "dns_error", "ssl_error", "connection_error",
-                "checkout_start_failed", "token_extraction_failed",
-                "cart_failed", "unknown_error", "proxy_error",
-                "card_vault_failed", "submission_rejected",
-            )
-
-            if any(kw in result.message for kw in error_keywords):
+            # Classify store health — SITE_ERROR status = bad store
+            if result.status == "SITE_ERROR":
                 bad_stores.append((store_url, source_file, result.message))
             else:
                 good_stores.append(store_url)

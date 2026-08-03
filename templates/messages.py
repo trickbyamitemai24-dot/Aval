@@ -136,6 +136,12 @@ def format_start(tier, card_limit, checks=0, charged=0, live=0):
 # ═════════════════════════════════════════════════════════════════════════
 # SINGLE CHECK
 # ═════════════════════════════════════════════════════════════════════════
+def _ist_now() -> str:
+    """Current time in IST (UTC+5:30) — ShopixRzr style."""
+    from datetime import datetime, timedelta
+    return (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%I:%M:%S %p")
+
+
 def format_single_check(status, card, gateway, response, price, bin_info, flag=""):
     sm = {
         "CHARGED":  (e_money_bag(),  "𝑪𝑯𝑨𝑹𝑮𝑬𝑫"),
@@ -157,14 +163,15 @@ def format_single_check(status, card, gateway, response, price, bin_info, flag="
         f"{hdr()}\n\n"
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
-        f"{e_card()}   {B('ᴄᴄ')}       : {C(cc_full)}\n"
+        f"{e_card()}   {B('ᴄᴄ')}       : <tg-spoiler>{C(cc_full)}</tg-spoiler>\n"
         f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gateway}\n"
         f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {sc(response)}\n"
         f"{e_dollar()}  {B('ᴘʀɪᴄᴇ')}    : ${price}\n\n"
         f"{DS}\n"
         f"{e_search()}   {B('ʙɪɴ')}      : {bn}\n"
         f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
-        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n\n"
+        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n"
+        f"{e_timer()} {B('ᴛɪᴍᴇ')}    : {_ist_now()} IST\n\n"
         f"{ftr()}"
     )
 
