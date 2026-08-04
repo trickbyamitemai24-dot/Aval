@@ -295,7 +295,7 @@ def format_mass_check_limit_warning(total, limit):
 # ═════════════════════════════════════════════════════════════════════════
 # MASS CHECK PROGRESS
 # ═════════════════════════════════════════════════════════════════════════
-def format_mass_check_progress(pr, total, checked, duration, charged, live, dead):
+def format_mass_check_progress(price_range, total, checked, duration, charged, live, dead):
     pct = (checked / total) if total > 0 else 0
     pct_num = int(pct * 100)
 
@@ -318,7 +318,7 @@ def format_mass_check_progress(pr, total, checked, duration, charged, live, dead
     return (
         f"{hdr()}\n\n{frame('ᴍᴀss ᴄʜᴇᴄᴋ')}\n\n"
         f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : #Mass_Shopify\n"
-        f"{e_dollar()}  {B('ʀᴀɴɢᴇ')}      : {pr}\n"
+        f"{e_dollar()}  {B('ʀᴀɴɢᴇ')}      : {price_range}\n"
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n\n"
         f"{bar(pct)}\n"
         f"   {checked}/{total} ({pct_num}%)\n"
@@ -334,13 +334,13 @@ def format_mass_check_progress(pr, total, checked, duration, charged, live, dead
 # ═════════════════════════════════════════════════════════════════════════
 # MASS CHECK COMPLETE
 # ═════════════════════════════════════════════════════════════════════════
-def format_mass_check_complete(pr, total, duration, charged, live, dead):
+def format_mass_check_complete(price_range, total, duration, charged, live, dead):
     success = charged + live
     rate = int((success / total * 100)) if total > 0 else 0
     return (
         f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
         f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : #Mass_Shopify\n"
-        f"{e_dollar()}  {B('ʀᴀɴɢᴇ')}      : {pr}\n"
+        f"{e_dollar()}  {B('ʀᴀɴɢᴇ')}      : {price_range}\n"
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n"
         f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
         f"{DS}\n"

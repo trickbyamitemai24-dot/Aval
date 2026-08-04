@@ -86,20 +86,27 @@ async def mass_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(get_mass_active_message())
         return ConversationHandler.END
 
+    # ✅ Reply-to-txt support: /chk as reply to a .txt file → process directly
+    reply = update.message.reply_to_message
+    if reply and reply.document:
+        return await process_card_document(update, ctx, reply.document)
+
     await update.message.reply_text(
         f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
         f"{DIVIDER}\n\n"
         f"{e_memo()} {BOLD('Send a .txt file with cards')}\n\n"
         f"One card per line.\n"
         f"Format: {CODE('NUMBER|MM|YYYY|CVV')}\n\n"
+        f"{e_check_done()} {BOLD('Tip:')} reply to a .txt file with {CODE('/chk')}\n\n"
         f"{e_cross()} Send {CODE('/cancel')} to abort.",
         parse_mode=ParseMode.HTML,
     )
     return WAITING_FOR_FILE
 
 
-async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Handle .txt file upload — parse cards, show price range buttons."""
+async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, doc):
+    """Shared .txt processing — parse cards, show price range buttons.
+    Called by both receive_card_file (upload) and mass_check_cmd (reply)."""
     user = update.effective_user
     conn = ctx.bot_data["db"]
 
@@ -107,21 +114,12 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return ConversationHandler.END
 
-    # Check if message has a document
-    if not update.message.document:
-        await update.message.reply_text(
-            f"{format_error('Please send a .txt file with cards.')}",
-            parse_mode=ParseMode.HTML,
-        )
-        return WAITING_FOR_FILE
-
-    doc = update.message.document
-    if not doc.file_name.endswith(".txt"):
+    if not doc.file_name or not doc.file_name.endswith(".txt"):
         await update.message.reply_text(
             f"{format_error('File must be a .txt file.')}",
             parse_mode=ParseMode.HTML,
         )
-        return WAITING_FOR_FILE
+        return ConversationHandler.END
 
     # Limit to 5MB max
     if doc.file_size and doc.file_size > 5 * 1024 * 1024:
@@ -129,7 +127,7 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             format_error("File is too large. Max 5MB allowed."),
             parse_mode=ParseMode.HTML,
         )
-        return WAITING_FOR_FILE
+        return ConversationHandler.END
 
     # Download file
     try:
@@ -142,7 +140,7 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             format_error("Failed to download file. Try again."),
             parse_mode=ParseMode.HTML,
         )
-        return WAITING_FOR_FILE
+        return ConversationHandler.END
 
     # Parse cards
     cards = parse_card_list(text)
@@ -151,7 +149,7 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             format_error("No valid cards found in file."),
             parse_mode=ParseMode.HTML,
         )
-        return WAITING_FOR_FILE
+        return ConversationHandler.END
 
     # Hourly rate limit check
     from core.tier_manager import get_user_tier
@@ -237,6 +235,42 @@ async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
     )
     return ConversationHandler.END
+
+
+async def receive_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle .txt file upload — parse cards, show price range buttons."""
+    user = update.effective_user
+    conn = ctx.bot_data["db"]
+
+    if is_banned(conn, user.id):
+        await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
+        return ConversationHandler.END
+
+    # Check if message has a document
+    if not update.message.document:
+        await update.message.reply_text(
+            f"{format_error('Please send a .txt file with cards.')}",
+            parse_mode=ParseMode.HTML,
+        )
+        return WAITING_FOR_FILE
+
+    doc = update.message.document
+    if not doc.file_name or not doc.file_name.endswith(".txt"):
+        await update.message.reply_text(
+            f"{format_error('File must be a .txt file.')}",
+            parse_mode=ParseMode.HTML,
+        )
+        return WAITING_FOR_FILE
+
+    # Limit to 5MB max
+    if doc.file_size and doc.file_size > 5 * 1024 * 1024:
+        await update.message.reply_text(
+            format_error("File is too large. Max 5MB allowed."),
+            parse_mode=ParseMode.HTML,
+        )
+        return WAITING_FOR_FILE
+
+    return await process_card_document(update, ctx, doc)
 
 
 async def cancel_mass_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -378,7 +412,7 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             cards=cards,
             stores=stores,
             workers=workers,
-            timeout=25,
+            timeout=120,
             progress_callback=progress_cb,
             progress_interval=3.0,
             proxy_provider=proxy_provider,
@@ -560,7 +594,7 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return None
 
     result = await mass_check(
-        cards=cards, stores=stores, workers=workers, timeout=25,
+        cards=cards, stores=stores, workers=workers, timeout=120,
         progress_callback=progress_cb, progress_interval=3.0,
         proxy_provider=proxy_provider, state_conn=conn, state_id=state_id,
         health_cache=health_cache,
