@@ -187,15 +187,15 @@ def increment_check_stats(conn: sqlite3.Connection, user_id: int,
         "charged": "UPDATE users SET total_charged = total_charged + ?, total_checks = total_checks + ? WHERE user_id = ?",
         "live": "UPDATE users SET total_live = total_live + ?, total_checks = total_checks + ? WHERE user_id = ?",
         "dead": "UPDATE users SET total_dead = total_dead + ?, total_checks = total_checks + ? WHERE user_id = ?",
-        "checks": "UPDATE users SET total_checks = total_checks + ? WHERE user_id = ?",
     }
-    query = queries.get(status, queries["checks"])
-    
-    if status == "checks":
-        conn.execute(query, (amount, user_id))
+    key = (status or "").lower()
+    if key in queries:
+        conn.execute(queries[key], (amount, amount, user_id))
     else:
-        conn.execute(query, (amount, amount, user_id))
-        
+        conn.execute(
+            "UPDATE users SET total_checks = total_checks + ? WHERE user_id = ?",
+            (amount, user_id),
+        )
     conn.commit()
 
 

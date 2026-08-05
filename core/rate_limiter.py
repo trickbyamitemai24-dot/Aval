@@ -53,6 +53,8 @@ class RateLimiter:
         self._active_mass: dict[int, int] = defaultdict(int)
         # Card repeat detection: {(user_id, card_number): timestamp}
         self._card_seen: dict[tuple[int, str], float] = {}
+        # Throttle global cleanup to once per hour
+        self._last_global_cleanup: float = 0.0
 
     def _cleanup(self, user_id: int):
         """Remove entries older than 1 hour."""
@@ -66,6 +68,20 @@ class RateLimiter:
             key: ts for key, ts in self._card_seen.items() if ts > cutoff
         }
 
+    def _global_cleanup(self):
+        """Prune all stale entries across all dicts. Runs at most once per hour."""
+        now = time.time()
+        if now - self._last_global_cleanup < 3600:
+            return
+        self._last_global_cleanup = now
+        cutoff = now - 3600
+        self._cmd_last = {k: v for k, v in self._cmd_last.items() if v > cutoff}
+        self._card_seen = {k: v for k, v in self._card_seen.items() if v > cutoff}
+        self._hourly = defaultdict(list, {
+            uid: [(t, c) for t, c in entries if t > cutoff]
+            for uid, entries in self._hourly.items()
+        })
+
     def check_command_cooldown(self, user_id: int, command: str) -> tuple[bool, int]:
         """Check if user can use this command now.
         
@@ -75,6 +91,7 @@ class RateLimiter:
         if cooldown == 0:
             return True, 0
 
+        self._global_cleanup()
         key = (user_id, command)
         last = self._cmd_last.get(key, 0)
         elapsed = time.time() - last

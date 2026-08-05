@@ -192,13 +192,20 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Handle /st command — single Stripe $1 check."""
+    """Handle /st command — single Stripe $1 check. (Currently disabled.)"""
     user = update.effective_user
     conn = ctx.bot_data["db"]
 
     if is_banned(conn, user.id):
         await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
+
+    await update.message.reply_text(
+        "⚠️ <b>Stripe check is currently disabled.</b>\n\n"
+        "Use <code>/sh</code> for Shopify checks instead.",
+        parse_mode=ParseMode.HTML,
+    )
+    return
 
     # Rate limit: command cooldown
     allowed, remaining = rate_limiter.check_command_cooldown(user.id, "st")

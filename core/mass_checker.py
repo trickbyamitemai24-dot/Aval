@@ -84,8 +84,19 @@ class AdaptiveSemaphore:
                 logger.info("Adaptive: success ratio %.0f%% — scaling UP %d -> %d workers", ratio * 100, old, self._current)
 
             if self._current != old:
-                # Rebuild semaphore with new limit
-                self._semaphore = asyncio.Semaphore(self._current)
+                # Adjust semaphore capacity in-place (don't replace the object)
+                diff = self._current - old
+                if diff > 0:
+                    # Scale up: release extra slots
+                    for _ in range(diff):
+                        self._semaphore.release()
+                elif diff < 0:
+                    # Scale down: acquire slots (non-blocking best-effort)
+                    for _ in range(-diff):
+                        try:
+                            self._semaphore._value = max(0, self._semaphore._value - 1)
+                        except Exception:
+                            break
 
     @property
     def current_workers(self) -> int:
@@ -304,7 +315,11 @@ async def mass_check(
                 used_stores.add(candidate)
                 
             if len(used_stores) > max_used_cache:
-                used_stores.clear()
+                # Remove random half instead of full clear to avoid re-use bursts
+                import random
+                to_remove = random.sample(list(used_stores), max_used_cache // 2)
+                for s in to_remove:
+                    used_stores.discard(s)
             if not store:
                 # All domain slots full or no stores — force pick ignoring domain cap
                 candidate = _pick_store_smart()
@@ -476,8 +491,12 @@ async def mass_check(
                 await _release_domain(store)
             adaptive_sem.release()
 
-    tasks = [asyncio.create_task(check_one(c)) for c in cards]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    # Process cards in batches to avoid creating 50k+ tasks at once
+    _BATCH_SIZE = 200
+    for batch_start in range(0, len(cards), _BATCH_SIZE):
+        batch = cards[batch_start:batch_start + _BATCH_SIZE]
+        tasks = [asyncio.create_task(check_one(c)) for c in batch]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     result.duration = time.time() - start_time
 

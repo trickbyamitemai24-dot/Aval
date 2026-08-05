@@ -65,12 +65,6 @@ def owner_only(func):
 
 
 @admin_only
-async def genkeys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Placeholder — not registered in bot.py."""
-    await update.message.reply_text("Use /genkey (key system v2).")
-
-
-@admin_only
 async def keys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /keys [active] — list batch keys from key system v2."""
     conn = ctx.bot_data["db"]
@@ -180,7 +174,7 @@ async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{e_chart()} {BOLD('Tier Distribution')}\n{tier_lines}\n\n"
         f"{e_gem()} {BOLD('Top 5 Users')}\n{top_text}\n\n"
         f"{DIVIDER}\n"
-        f"{e_mailbox()} {ITALIC('Owner: @rayzenqx')}",
+        f"{e_mailbox()} {ITALIC('Bot Statistics')}",
         parse_mode=ParseMode.HTML,
     )
 
@@ -315,6 +309,7 @@ async def broadcast_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.debug("Broadcast failed for %d: %s", u["user_id"], e)
             failed += 1
+        await asyncio.sleep(0.05)  # ~20 msg/sec, stay under Telegram's 30/sec limit
 
     await update.message.reply_text(
         f"📢 Broadcast sent to {sent} users.\nFailed: {failed}",
@@ -428,7 +423,8 @@ async def backup_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     from pathlib import Path
 
     conn = ctx.bot_data["db"]
-    db_path = conn.execute("PRAGMA database_list WHERE name = 'main'").fetchone()["file"]
+    row = conn.execute("PRAGMA database_list").fetchone()
+    db_path = row["file"] if row else "data/aurora.db"
 
     backup_dir = Path("data/backup")
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -437,7 +433,11 @@ async def backup_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     backup_path = backup_dir / f"aurora_backup_{timestamp}.db"
 
     try:
-        shutil.copy2(db_path, str(backup_path))
+        # Use SQLite's native backup API to capture WAL/SHM data
+        import sqlite3
+        backup_conn = sqlite3.connect(str(backup_path))
+        conn.backup(backup_conn)
+        backup_conn.close()
         await update.message.reply_text(
             f"{e_check_done()} Database backed up.\n{e_clipboard()} {backup_path}",
         )
@@ -452,6 +452,7 @@ async def backup_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # Pending deletion sessions: {user_id: {bad_stores: [(url, reason)], card: str}}
 _pending_deletions: dict[int, dict] = {}
+_MAX_PENDING_DELETIONS = 20
 
 
 @owner_only
@@ -567,7 +568,10 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elapsed = _time.time() - start_time
 
-    # Store bad stores for deletion approval
+    # Store bad stores for deletion approval (cap dict size to prevent leak)
+    if len(_pending_deletions) >= _MAX_PENDING_DELETIONS:
+        oldest_key = next(iter(_pending_deletions))
+        _pending_deletions.pop(oldest_key)
     _pending_deletions[user.id] = {
         "bad_stores": bad_stores,
         "card": card.masked,

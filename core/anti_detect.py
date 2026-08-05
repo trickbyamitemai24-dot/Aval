@@ -72,12 +72,18 @@ def random_user_agent() -> str:
 
 def browser_headers(ua: str = None) -> dict:
     prof = random_profile()
-    if ua: prof.ua = ua
+    if ua:
+        from copy import copy
+        prof = copy(prof)
+        prof.ua = ua
     return prof.get_headers("navigate")
 
 def api_headers(ua: str = None) -> dict:
     prof = random_profile()
-    if ua: prof.ua = ua
+    if ua:
+        from copy import copy
+        prof = copy(prof)
+        prof.ua = ua
     return prof.get_headers("api")
 
 async def jitter(min_ms: int = 100, max_ms: int = 500):

@@ -85,6 +85,14 @@ CHARGED_TRIGGERS = (
 )
 
 
+def _word_match(text: str, triggers: tuple) -> bool:
+    """Check if any trigger appears as a whole word/phrase in text (word-boundary safe)."""
+    for t in triggers:
+        if re.search(r'\b' + re.escape(t) + r'\b', text):
+            return True
+    return False
+
+
 def classify_response(status_raw: str, msg: str) -> tuple[str, str]:
     """Classify API response into final status.
 
@@ -97,22 +105,22 @@ def classify_response(status_raw: str, msg: str) -> tuple[str, str]:
     # 1. SITE ERROR — checked FIRST so any infra failure retries
     if (
         ("site" in status_lower and "error" in status_lower)
-        or any(t in msg_lower for t in SITE_ERROR_TRIGGERS)
+        or _word_match(msg_lower, SITE_ERROR_TRIGGERS)
     ):
         return "SITE_ERROR", f"site_error: {msg}"
 
     # 2. CHARGED
-    if "charged" in status_lower or any(t in msg_lower for t in CHARGED_TRIGGERS):
+    if "charged" in status_lower or _word_match(msg_lower, CHARGED_TRIGGERS):
         return "CHARGED", msg
 
     # 3. LIVE 3DS
-    if "3ds" in status_lower or any(t in msg_lower for t in LIVE_3DS_TRIGGERS):
+    if "3ds" in status_lower or _word_match(msg_lower, LIVE_3DS_TRIGGERS):
         return "LIVE_3DS", msg
 
     # 4. LIVE / APPROVED
     if (
         status_lower in ("approved", "live")
-        or any(t in msg_lower for t in LIVE_TRIGGERS)
+        or _word_match(msg_lower, LIVE_TRIGGERS)
     ):
         return "LIVE", msg
 
@@ -126,6 +134,28 @@ def classify_response(status_raw: str, msg: str) -> tuple[str, str]:
 
     # 7. Fallback: unrecognized → treat as site error (safer than false DEAD)
     return "SITE_ERROR", f"site_error: unclassified_response: {msg[:80]}"
+
+
+# Shared connection pool for all checks (avoids TCP+TLS handshake per card)
+_shared_session: Optional[aiohttp.ClientSession] = None
+
+async def _get_session() -> aiohttp.ClientSession:
+    """Get or create the shared aiohttp session."""
+    global _shared_session
+    if _shared_session is None or _shared_session.closed:
+        connector = aiohttp.TCPConnector(
+            limit=100, limit_per_host=30,
+            ttl_dns_cache=300, keepalive_timeout=60,
+        )
+        _shared_session = aiohttp.ClientSession(connector=connector)
+    return _shared_session
+
+async def close_session():
+    """Close the shared session (call on shutdown)."""
+    global _shared_session
+    if _shared_session and not _shared_session.closed:
+        await _shared_session.close()
+        _shared_session = None
 
 
 async def shopify_check(
@@ -154,66 +184,66 @@ async def shopify_check(
 
     backoff = (3, 6)
 
-    async with aiohttp.ClientSession() as session:
-        for attempt in range(max_retries + 1):
-            try:
-                api_timeout = aiohttp.ClientTimeout(total=timeout)
-                async with session.get(api_url, params=params, timeout=api_timeout) as r:
-                    if r.status == 200:
-                        try:
-                            # content_type=None → never fail on bad content-type
-                            data = await r.json(content_type=None)
-                        except Exception:
-                            text = await r.text()
-                            logger.debug("External API non-JSON: %.200s", text)
-                            if attempt < max_retries:
-                                await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
-                                continue
-                            return CheckResult("SITE_ERROR", "site_error: invalid_json_response",
-                                               "Shopify Payments", 0.0, store_url, card)
-
-                        if not isinstance(data, dict):
-                            data = {}
-
-                        status_raw = str(data.get("Status") or "")
-                        msg = str(data.get("Response") or data.get("RawResponse") or "")
-                        gw = str(data.get("Gateway") or "Shopify Payments")
-                        price = extract_price(data.get("Price", "0.0"))
-
-                        status, final_msg = classify_response(status_raw, msg)
-                        return CheckResult(status, final_msg, gw, price, store_url, card)
-
-                    elif r.status in (502, 503, 504, 429):
-                        logger.debug("External API %s (attempt %d/%d)",
-                                     r.status, attempt + 1, max_retries + 1)
-                        if attempt < max_retries:
-                            await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
-                            continue
-                        return CheckResult("SITE_ERROR", f"site_error: api_http_error_{r.status}",
-                                           "Shopify Payments", 0.0, store_url, card)
-                    else:
+    session = await _get_session()
+    for attempt in range(max_retries + 1):
+        try:
+            api_timeout = aiohttp.ClientTimeout(total=timeout)
+            async with session.get(api_url, params=params, timeout=api_timeout) as r:
+                if r.status == 200:
+                    try:
+                        # content_type=None → never fail on bad content-type
+                        data = await r.json(content_type=None)
+                    except Exception:
                         text = await r.text()
-                        logger.debug("External API error %s: %.200s", r.status, text)
+                        logger.debug("External API non-JSON: %.200s", text)
                         if attempt < max_retries:
                             await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
                             continue
-                        return CheckResult("SITE_ERROR", f"site_error: api_http_error_{r.status}",
+                        return CheckResult("SITE_ERROR", "site_error: invalid_json_response",
                                            "Shopify Payments", 0.0, store_url, card)
 
-            except asyncio.TimeoutError:
-                logger.debug("External API timeout (attempt %d/%d)", attempt + 1, max_retries + 1)
-                if attempt < max_retries:
-                    await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
-                    continue
-                return CheckResult("SITE_ERROR", "site_error: timeout",
-                                   "Shopify Payments", 0.0, store_url, card)
-            except Exception as e:
-                logger.debug("External API exception: %s", e)
-                if attempt < max_retries:
-                    await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
-                    continue
-                return CheckResult("SITE_ERROR", f"site_error: {str(e)[:60]}",
-                                   "Shopify Payments", 0.0, store_url, card)
+                    if not isinstance(data, dict):
+                        data = {}
+
+                    status_raw = str(data.get("Status") or "")
+                    msg = str(data.get("Response") or data.get("RawResponse") or "")
+                    gw = str(data.get("Gateway") or "Shopify Payments")
+                    price = extract_price(data.get("Price", "0.0"))
+
+                    status, final_msg = classify_response(status_raw, msg)
+                    return CheckResult(status, final_msg, gw, price, store_url, card)
+
+                elif r.status in (502, 503, 504, 429):
+                    logger.debug("External API %s (attempt %d/%d)",
+                                 r.status, attempt + 1, max_retries + 1)
+                    if attempt < max_retries:
+                        await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+                        continue
+                    return CheckResult("SITE_ERROR", f"site_error: api_http_error_{r.status}",
+                                       "Shopify Payments", 0.0, store_url, card)
+                else:
+                    text = await r.text()
+                    logger.debug("External API error %s: %.200s", r.status, text)
+                    if attempt < max_retries:
+                        await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+                        continue
+                    return CheckResult("SITE_ERROR", f"site_error: api_http_error_{r.status}",
+                                       "Shopify Payments", 0.0, store_url, card)
+
+        except asyncio.TimeoutError:
+            logger.debug("External API timeout (attempt %d/%d)", attempt + 1, max_retries + 1)
+            if attempt < max_retries:
+                await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+                continue
+            return CheckResult("SITE_ERROR", "site_error: timeout",
+                               "Shopify Payments", 0.0, store_url, card)
+        except Exception as e:
+            logger.debug("External API exception: %s", e)
+            if attempt < max_retries:
+                await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+                continue
+            return CheckResult("SITE_ERROR", f"site_error: {str(e)[:60]}",
+                               "Shopify Payments", 0.0, store_url, card)
 
     return CheckResult("SITE_ERROR", "site_error: max_retries_exhausted",
                        "Shopify Payments", 0.0, store_url, card)
