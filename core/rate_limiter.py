@@ -197,14 +197,17 @@ rate_limiter = RateLimiter()
 
 def get_cooldown_message(command: str, remaining: int) -> str:
     """Get cooldown message for a command."""
-    return f"⏳ Please wait {remaining}s before using {command} again."
+    from templates.messages import format_error
+    return format_error(f"⏳ Please wait {remaining}s before using {command} again.")
 
 
 def get_hourly_message(tier: str, remaining: int) -> str:
     """Get hourly limit message."""
-    return f"⏳ Hourly limit reached. Upgrade: /plans"
+    from templates.messages import format_error
+    return format_error(f"⏳ Hourly limit reached. Upgrade: /plans")
 
 
 def get_mass_active_message() -> str:
     """Get message when user already has active mass check."""
-    return "⏳ You already have an active mass check. Use /cancel to stop it."
+    from templates.messages import format_error
+    return format_error("⏳ You already have an active mass check. Use /cancel to stop it.")

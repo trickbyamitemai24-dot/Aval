@@ -280,9 +280,9 @@ async def receive_amz_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     card_limit = tier_config["card_limit"]
     if len(cards) > card_limit:
         cards = cards[:card_limit]
+        from templates.messages import format_mass_check_limit_warning
         await update.message.reply_text(
-            f"🫦 {BOLD(str(len(cards)))} cards — Tier limit {BOLD(str(card_limit))}. "
-            f"Checking first {BOLD(str(card_limit))}.",
+            format_mass_check_limit_warning(len(cards), card_limit),
             parse_mode=ParseMode.HTML,
         )
 
@@ -328,7 +328,7 @@ async def cancel_massamz(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     rate_limiter.cancel_mass(user.id)
     ctx.user_data.pop("amz_cookies", None)
     await update.message.reply_text(
-        f"{e_cross()} Mass Amazon check cancelled.", parse_mode=ParseMode.HTML,
+        "❌ Mass Amazon check cancelled.", parse_mode=ParseMode.HTML,
     )
     return ConversationHandler.END
 

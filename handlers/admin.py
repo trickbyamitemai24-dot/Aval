@@ -15,6 +15,7 @@ from core.card_parser import parse_card, luhn_valid
 from core.checker import shopify_check
 from core.rate_limiter import rate_limiter
 from templates.messages import (
+    hdr, ftr, frame,
     format_error, format_banned,
     format_chkall_start, format_chkall_progress, format_chkall_complete,
     format_chkall_bad_stores, format_chkall_usage, format_chkall_deleted,
@@ -83,7 +84,7 @@ async def keys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No keys found.")
         return
 
-    lines = [f"📋 Batch Keys ({'active' if active_only else 'all'}): {len(rows)}\n"]
+    lines = [f"{hdr()}\n\n{frame('BATCH KEYS')}\n"]
     for row in rows[:30]:
         status = "✅" if row["status"] == "unused" else "❌"
         redeemed = f"→ {row['redeemed_by']}" if row["redeemed_by"] else "unused"
@@ -94,6 +95,7 @@ async def keys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if len(rows) > 30:
         lines.append(f"\n... and {len(rows) - 30} more")
+    lines.append(f"\n{ftr()}")
 
     await update.message.reply_text(
         "\n".join(lines), parse_mode=ParseMode.HTML,
@@ -157,9 +159,8 @@ async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     top_text = "\n".join(top_lines) or "  No data"
 
     await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{DIVIDER}\n\n"
-        f"{e_chart()} {BOLD('𝑩𝑶𝑻 𝑺𝑻𝑨𝑻𝑰𝑺𝑻𝑰𝑪𝑺')}\n\n"
+        f"{hdr()}\n\n"
+        f"{frame('BOT STATISTICS')}\n\n"
         f"{e_clipboard()} {BOLD('Users')}          : {total_users}\n"
         f"{e_cross()} {BOLD('Banned')}         : {banned_users}\n"
         f"{e_gem()} {BOLD('Active Keys')}    : {active_keys}\n"
@@ -173,8 +174,7 @@ async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{DIVIDER}\n"
         f"{e_chart()} {BOLD('Tier Distribution')}\n{tier_lines}\n\n"
         f"{e_gem()} {BOLD('Top 5 Users')}\n{top_text}\n\n"
-        f"{DIVIDER}\n"
-        f"{e_mailbox()} {ITALIC('Bot Statistics')}",
+        f"{ftr()}",
         parse_mode=ParseMode.HTML,
     )
 
@@ -203,9 +203,8 @@ async def user_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     expires = user["key_expires_at"] or "—"
 
     await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{DIVIDER}\n\n"
-        f"👤 {BOLD('User Info')}\n\n"
+        f"{hdr()}\n\n"
+        f"{frame('USER PROFILE')}\n\n"
         f"🆔 {BOLD('ID')}          : {user['user_id']}\n"
         f"👤 {BOLD('Username')}    : {user['username'] or '—'}\n"
         f"{e_gem()} {BOLD('Tier')}        : {user['tier']}\n"
@@ -218,7 +217,7 @@ async def user_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{e_warning()} {BOLD('Dead')}         : {user['total_dead']}\n"
         f"{e_cross()} {BOLD('Banned')}      : {banned}\n"
         f"{e_calendar()} {BOLD('Joined')}      : {user['joined_at']}\n\n"
-        f"{DIVIDER}",
+        f"{ftr()}",
         parse_mode=ParseMode.HTML,
     )
 
@@ -403,12 +402,13 @@ async def charged_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No charged cards recorded.")
         return
 
-    lines = [f"{e_heart()} <b>Recent Charged Cards ({len(rows)})</b>\n"]
+    lines = [f"{hdr()}\n\n{frame('RECENT CHARGED')}\n"]
     for r in rows:
         lines.append(
             f"<code>{r['card_masked']}</code> | {r['gateway']} | "
             f"${r['price']} | {r['checked_at']}"
         )
+    lines.append(f"\n{ftr()}")
 
     await update.message.reply_text(
         "\n".join(lines), parse_mode=ParseMode.HTML,

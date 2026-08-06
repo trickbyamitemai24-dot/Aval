@@ -163,81 +163,81 @@ def get_user_message(exc: Exception) -> str:
         if "message is not modified" in msg:
             return None  # Silent — not an error
         if "chat not found" in msg:
-            return "Chat not found. Start the bot first with /start"
+            return format_error("Chat not found. Start the bot first with /start")
         if "button_data_invalid" in msg:
-            return "Button data expired. Try again."
+            return format_error("Button data expired. Try again.")
         if "can't parse entities" in msg:
             logger.error("HTML Parse Error: %s", msg)
-            return "Format error: Invalid HTML in message."
+            return format_error("Format error: Invalid HTML in message.")
             
         logger.error("Unhandled BadRequest: %s", msg)
-        return "Invalid request. Check your input."
+        return format_error("Invalid request. Check your input.")
 
     if isinstance(exc, telegram.error.Forbidden):
-        return "Bot was blocked. Cannot send messages."
+        return format_error("Bot was blocked. Cannot send messages.")
 
     if isinstance(exc, telegram.error.RetryAfter):
         return f"Rate limited. Wait {exc.retry_after}s."
 
     if isinstance(exc, telegram.error.TimedOut):
-        return "Telegram timed out. Retrying..."
+        return format_error("Telegram timed out. Retrying...")
 
     if isinstance(exc, telegram.error.Conflict):
-        return "Another bot instance is running. Only one allowed."
+        return format_error("Another bot instance is running. Only one allowed.")
 
     # Network
     if "timeout" in msg or isinstance(exc, asyncio.TimeoutError):
-        return "Request timed out. The store may be slow — try again."
+        return format_error("Request timed out. The store may be slow — try again.")
     if "dns" in msg or "could not resolve" in msg or isinstance(exc, aiohttp.ClientConnectorDNSError):
-        return "DNS resolution failed. Check network or proxy."
+        return format_error("DNS resolution failed. Check network or proxy.")
     if "ssl" in msg or "certificate" in msg:
-        return "SSL error. The store may have an invalid certificate."
+        return format_error("SSL error. The store may have an invalid certificate.")
     if "proxy" in msg:
-        return "Proxy error. Check your proxies with /proxy"
+        return format_error("Proxy error. Check your proxies with /proxy")
     if "connection" in msg and "refused" in msg:
-        return "Connection refused. The store may be offline."
+        return format_error("Connection refused. The store may be offline.")
     if "connection" in msg and "reset" in msg:
-        return "Connection reset. Network instability."
+        return format_error("Connection reset. Network instability.")
     if isinstance(exc, (aiohttp.ClientError, ConnectionError)):
-        return "Network error. Try again."
+        return format_error("Network error. Try again.")
 
     # Database
     if "database is locked" in msg:
-        return "System busy. Try again in a few seconds."
+        return format_error("System busy. Try again in a few seconds.")
     if "no such table" in msg or "no such column" in msg:
-        return "Database needs migration. Contact admin."
+        return format_error("Database needs migration. Contact admin.")
     if "disk" in msg and ("full" in msg or "space" in msg):
-        return "Server storage full. Contact admin immediately."
+        return format_error("Server storage full. Contact admin immediately.")
     if "constraint" in msg:
-        return "Data conflict. Entry may already exist."
+        return format_error("Data conflict. Entry may already exist.")
 
     # File
     if isinstance(exc, FileNotFoundError):
-        return "Required file not found. Contact admin."
+        return format_error("Required file not found. Contact admin.")
     if isinstance(exc, PermissionError):
-        return "Permission denied. Contact admin."
+        return format_error("Permission denied. Contact admin.")
 
     # Value/Type
     if isinstance(exc, (ValueError, TypeError)):
         return f"Invalid input type. ({type(exc).__name__}: {str(exc)})"
     if isinstance(exc, KeyError):
-        return "Missing required field. Try again."
+        return format_error("Missing required field. Try again.")
     if isinstance(exc, (IndexError, AttributeError)):
         return f"Data parsing error. Try again. ({type(exc).__name__}: {str(exc)})"
 
     # Generic
     if "rate" in msg and "limit" in msg:
-        return "Too many requests. Slow down."
+        return format_error("Too many requests. Slow down.")
     if "banned" in msg:
-        return "You are banned from this bot."
+        return format_error("You are banned from this bot.")
     if "expired" in msg:
-        return "Session expired. Try /start."
+        return format_error("Session expired. Try /start.")
     if "invalid" in msg:
-        return "Invalid input. Check your format."
+        return format_error("Invalid input. Check your format.")
     if "not found" in msg:
-        return "Not found."
+        return format_error("Not found.")
 
-    return "Something went wrong. Try again."
+    return format_error("Something went wrong. Try again.")
 
 
 # ═════════════════════════════════════════════════════════════════════════

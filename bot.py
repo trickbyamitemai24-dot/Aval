@@ -169,8 +169,8 @@ def main():
     error_handler = ErrorHandler(config)
     health_monitor = HealthMonitor()
 
-    # Build Telegram app
-    app = Application.builder().token(token).post_shutdown(_shutdown).build()
+    # Build Telegram app (concurrent_updates=True is CRITICAL so long mass checks don't block the bot)
+    app = Application.builder().token(token).concurrent_updates(True).post_shutdown(_shutdown).build()
 
     # Store shared state
     app.bot_data["db"] = conn

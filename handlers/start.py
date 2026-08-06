@@ -80,16 +80,16 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "start_sh":
+        from templates.messages import format_usage_sh
         await query.message.reply_text(
-            f"{e_card()} Usage: <code>/sh 4798510629051356|12|2028|893</code>\n\n"
-            "Or reply to a card message with <code>/sh</code>",
-            parse_mode=ParseMode.HTML,
+            format_usage_sh(), parse_mode=ParseMode.HTML,
         )
 
     elif data == "start_chk":
+        from templates.messages import format_error
         await query.message.reply_text(
-            f"{e_memo()} Send <code>/chk</code> then upload a .txt file with cards.\n"
-            "One card per line: <code>NUMBER|MM|YYYY|CVV</code>",
+            format_error("Send <code>/chk</code> then upload a .txt file with cards.
+One card per line: <code>NUMBER|MM|YYYY|CVV</code>"),
             parse_mode=ParseMode.HTML,
         )
 
@@ -102,9 +102,10 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.warning("start_plans error: %s", e)
 
     elif data == "start_redeem":
+        from templates.messages import format_error
         await query.message.reply_text(
-            f"{e_gem()} Usage: <code>/redeem AURORA-XXXX-XXXX-XXXX-XXXX</code>\n\n"
-            "Or reply to a key message with <code>/redeem</code>",
+            format_error("Usage: <code>/redeem AURORA-XXXX-XXXX-XXXX-XXXX</code>
+Or reply to a key message with <code>/redeem</code>"),
             parse_mode=ParseMode.HTML,
         )
 
@@ -126,11 +127,21 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.warning("start_status error: %s", e)
 
     elif data == "start_proxy":
+        from templates.messages import hdr, ftr, frame
         await query.message.reply_text(
-            f"{e_mobile()} Proxy commands:\n\n"
-            "• <code>/addproxy</code> — Add proxies (tested on Shopify)\n"
-            "• <code>/proxy</code> — Check &amp; clean dead proxies\n"
-            "• <code>/clearproxy</code> — Clear all proxies",
+            f"{hdr()}
+
+{frame('PROXY COMMANDS')}
+
+"
+            f"{e_mobile()} <code>/addproxy</code> — Add proxies (tested on Shopify)
+"
+            f"{e_mobile()} <code>/proxy</code> — Check & clean dead proxies
+"
+            f"{e_mobile()} <code>/clearproxy</code> — Clear all proxies
+
+"
+            f"{ftr()}",
             parse_mode=ParseMode.HTML,
         )
 
