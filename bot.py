@@ -77,6 +77,7 @@ from handlers.admin import (
     backup_cmd,
     chk_all_site_cmd,
     handle_deletion_callback,
+    admin_pagination_callback,
 )
 from handlers.proxy_handler import (
     addproxy_cmd,
@@ -253,6 +254,12 @@ def main():
     app.add_handler(CallbackQueryHandler(
         handle_deletion_callback,
         pattern=r"^(delete_bad_stores|cancel_deletion)$",
+    ))
+
+    # Callback for admin pagination
+    app.add_handler(CallbackQueryHandler(
+        admin_pagination_callback,
+        pattern=r"^(keys_page_|charged_page_|ignore)",
     ))
 
     # Proxy commands
