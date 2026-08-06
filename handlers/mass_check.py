@@ -233,7 +233,7 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
             ),
         ],
         [
-            InlineKeyboardButton(strip_tg_emoji(f"{e_cross()} Cancel"), callback_data=CB_CANCEL),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_cross()} Cancel"), callback_data=CB_CANCEL, api_kwargs={"style": "danger"}),
         ],
     ])
 

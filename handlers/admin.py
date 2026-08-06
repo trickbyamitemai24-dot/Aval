@@ -108,10 +108,10 @@ async def _send_keys_page(send_func, ctx, page: int, active_only: bool):
     buttons = []
     cb_prefix = "keys_page_active_" if active_only else "keys_page_all_"
     if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"{cb_prefix}{page-1}"))
+        buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"{cb_prefix}{page-1}", api_kwargs={"style": "primary"}))
     buttons.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore"))
     if page < total_pages:
-        buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"{cb_prefix}{page+1}"))
+        buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"{cb_prefix}{page+1}", api_kwargs={"style": "primary"}))
     
     markup = InlineKeyboardMarkup([buttons]) if buttons else None
     await send_func("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=markup)
@@ -438,10 +438,10 @@ async def _send_charged_page(send_func, ctx, page: int):
     # Pagination Keyboard
     buttons = []
     if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"charged_page_{page-1}"))
+        buttons.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"charged_page_{page-1}", api_kwargs={"style": "primary"}))
     buttons.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore"))
     if page < total_pages:
-        buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"charged_page_{page+1}"))
+        buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"charged_page_{page+1}", api_kwargs={"style": "primary"}))
     
     markup = InlineKeyboardMarkup([buttons]) if buttons else None
     await send_func("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=markup)
@@ -658,6 +658,7 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton(
                 strip_tg_emoji(f"{e_check_done()} Delete {len(bad_stores)} bad stores"),
                 callback_data="delete_bad_stores",
+                api_kwargs={"style": "danger"}
             ),
             InlineKeyboardButton(
                 strip_tg_emoji(f"{e_cross()} Cancel"),
