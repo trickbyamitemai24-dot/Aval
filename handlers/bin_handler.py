@@ -42,7 +42,11 @@ async def bin_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     bin_code = digits[:6]
 
     # Send "looking up..." message
-    msg = await update.message.reply_text(f"🔍 Looking up BIN {bin_code}...")
+    from templates.messages import format_processing
+    msg = await update.message.reply_text(
+        format_processing("BIN LOOKUP", f"Querying database for {bin_code}..."),
+        parse_mode=ParseMode.HTML
+    )
 
     # Lookup
     bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]

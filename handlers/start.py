@@ -88,8 +88,8 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "start_chk":
         from templates.messages import format_error
         await query.message.reply_text(
-            format_error("Send <code>/chk</code> then upload a .txt file with cards.
-One card per line: <code>NUMBER|MM|YYYY|CVV</code>"),
+            format_error("""Send <code>/chk</code> then upload a .txt file with cards.
+One card per line: <code>NUMBER|MM|YYYY|CVV</code>"""),
             parse_mode=ParseMode.HTML,
         )
 
@@ -104,8 +104,8 @@ One card per line: <code>NUMBER|MM|YYYY|CVV</code>"),
     elif data == "start_redeem":
         from templates.messages import format_error
         await query.message.reply_text(
-            format_error("Usage: <code>/redeem AURORA-XXXX-XXXX-XXXX-XXXX</code>
-Or reply to a key message with <code>/redeem</code>"),
+            format_error("""Usage: <code>/redeem AURORA-XXXX-XXXX-XXXX-XXXX</code>
+Or reply to a key message with <code>/redeem</code>"""),
             parse_mode=ParseMode.HTML,
         )
 
@@ -129,19 +129,15 @@ Or reply to a key message with <code>/redeem</code>"),
     elif data == "start_proxy":
         from templates.messages import hdr, ftr, frame
         await query.message.reply_text(
-            f"{hdr()}
+            f"""{hdr()}
 
 {frame('PROXY COMMANDS')}
 
-"
-            f"{e_mobile()} <code>/addproxy</code> — Add proxies (tested on Shopify)
-"
-            f"{e_mobile()} <code>/proxy</code> — Check & clean dead proxies
-"
-            f"{e_mobile()} <code>/clearproxy</code> — Clear all proxies
+{e_mobile()} <code>/addproxy</code> — Add proxies (tested on Shopify)
+{e_mobile()} <code>/proxy</code> — Check & clean dead proxies
+{e_mobile()} <code>/clearproxy</code> — Clear all proxies
 
-"
-            f"{ftr()}",
+{ftr()}""",
             parse_mode=ParseMode.HTML,
         )
 

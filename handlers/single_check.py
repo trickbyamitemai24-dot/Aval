@@ -200,9 +200,9 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
 
+    from templates.messages import format_error
     await update.message.reply_text(
-        "⚠️ <b>Stripe check is currently disabled.</b>\n\n"
-        "Use <code>/sh</code> for Shopify checks instead.",
+        format_error("Stripe check is currently disabled.\nUse <code>/sh</code> for Shopify checks instead."),
         parse_mode=ParseMode.HTML,
     )
     return

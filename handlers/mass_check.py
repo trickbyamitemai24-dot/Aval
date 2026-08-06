@@ -41,7 +41,7 @@ from templates.messages import (
     format_error,
     format_tier_exceeded,
 )
-from templates.emojis import e_lightning, e_memo, e_cross, e_check_done
+from templates.emojis import e_lightning, e_memo, e_cross, e_check_done, strip_tg_emoji, e_check, e_rocket, e_globe, e_folder
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━"
 BOLD = lambda s: f"<b>{s}</b>"
@@ -105,13 +105,14 @@ async def mass_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await process_card_document(update, ctx, reply.document)
 
     await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{DIVIDER}\n\n"
+        f"{hdr()}\n\n"
+        f"{frame('MASS CHECK')}\n\n"
         f"{e_memo()} {BOLD('Send a .txt file with cards')}\n\n"
         f"One card per line.\n"
         f"Format: {CODE('NUMBER|MM|YYYY|CVV')}\n\n"
         f"{e_check_done()} {BOLD('Tip:')} reply to a .txt file with {CODE('/chk')}\n\n"
-        f"{e_cross()} Send {CODE('/cancel')} to abort.",
+        f"{e_cross()} Send {CODE('/cancel')} to abort.\n\n"
+        f"{ftr()}",
         parse_mode=ParseMode.HTML,
     )
     return WAITING_FOR_FILE
@@ -212,27 +213,27 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         ],
         [
             InlineKeyboardButton(
-                f"✅ HQ ({counts.get('hq', 0)})", callback_data=CB_PRICE_HQ,
+                strip_tg_emoji(f"{e_check()} HQ ({counts.get('hq', 0)})"), callback_data=CB_PRICE_HQ,
             ),
             InlineKeyboardButton(
-                f"⚡ V40 ({counts.get('v40', 0)})", callback_data=CB_PRICE_V40,
+                strip_tg_emoji(f"{e_lightning()} V40 ({counts.get('v40', 0)})"), callback_data=CB_PRICE_V40,
             ),
         ],
         [
             InlineKeyboardButton(
-                f"🚀 Sureship ({counts.get('sureship', 0)})", callback_data=CB_PRICE_SURESHIP,
+                strip_tg_emoji(f"{e_rocket()} Sureship ({counts.get('sureship', 0)})"), callback_data=CB_PRICE_SURESHIP,
             ),
             InlineKeyboardButton(
-                f"📦 Working ({counts['all']})", callback_data=CB_PRICE_ALL,
+                strip_tg_emoji(f"{e_folder()} Working ({counts['all']})"), callback_data=CB_PRICE_ALL,
             ),
         ],
         [
             InlineKeyboardButton(
-                f"🌐 ALL Sites ({counts.get('all_combined', 0)})", callback_data=CB_PRICE_ALL_COMBINED,
+                strip_tg_emoji(f"{e_globe()} ALL Sites ({counts.get('all_combined', 0)})"), callback_data=CB_PRICE_ALL_COMBINED,
             ),
         ],
         [
-            InlineKeyboardButton("❌ Cancel", callback_data=CB_CANCEL),
+            InlineKeyboardButton(strip_tg_emoji(f"{e_cross()} Cancel"), callback_data=CB_CANCEL),
         ],
     ])
 

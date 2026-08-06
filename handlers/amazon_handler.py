@@ -210,11 +210,14 @@ async def massamz_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["amz_cookies"] = cookie_row["cookies"]
 
     await update.message.reply_text(
-        f"{e_memo()} {BOLD('Mass Amazon Check')}\n{DIVIDER}\n\n"
-        f"Send a {CODE('.txt')} file with cards.\n"
-        f"One card per line: {CODE('NUMBER|MM|YYYY|CVV')}\n\n"
-        f"{e_lightning()} Using Leviatan Amazon API\n"
-        f"{DIVIDER}",
+        f"{hdr()}\n\n"
+        f"{frame('MASS AMAZON')}\n\n"
+        f"{e_memo()} {BOLD('Send a .txt file with cards')}\n\n"
+        f"One card per line.\n"
+        f"Format: {CODE('NUMBER|MM|YYYY|CVV')}\n\n"
+        f"{e_check_done()} {BOLD('Tip:')} reply to a .txt file with {CODE('/massamz')}\n\n"
+        f"{e_cross()} Send {CODE('/cancel')} to abort.\n\n"
+        f"{ftr()}",
         parse_mode=ParseMode.HTML,
     )
     return WAITING_FOR_AMZ_FILE
@@ -295,10 +298,9 @@ async def receive_amz_card_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     # Send initial progress message
+    from templates.messages import format_processing
     progress_msg = await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n{DIVIDER}\n\n"
-        f"{e_memo()} {BOLD('Mass Amazon Check')}\n\n"
-        f"{e_lightning()} {BOLD('Starting...')}\n\n{DIVIDER}",
+        format_processing("MASS AMAZON", "Starting..."),
         parse_mode=ParseMode.HTML,
     )
 

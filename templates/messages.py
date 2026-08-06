@@ -919,3 +919,10 @@ def format_chkall_cancelled():
         f"{e_cross()} {B('ʙᴀᴅ sᴛᴏʀᴇs ᴋᴇᴘᴛ. ɴᴏ ᴄʜᴀɴɢᴇs ᴍᴀᴅᴇ.')}\n\n"
         f"{ftr()}"
     )
+def format_processing(title, message):
+    return (
+        f"{hdr()}\n\n"
+        f"{frame(title)}\n\n"
+        f"{e_refresh()} {B(message)}\n\n"
+        f"{ftr()}"
+    )

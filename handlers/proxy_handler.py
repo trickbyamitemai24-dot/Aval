@@ -13,6 +13,7 @@ from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, 
 from core.database import is_banned
 from core.proxy_manager import ProxyManager, normalize_proxy, VALIDATION_WORKERS
 from templates.messages import (
+    hdr, ftr, frame,
     format_banned,
     format_proxy_checking,
     format_proxy_added,
@@ -42,19 +43,19 @@ async def addproxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{D}\n\n"
-        f"{e_memo()} {BOLD('Send proxies')}\n\n"
+        f"{hdr()}\n\n"
+        f"{frame('ADD PROXIES')}\n\n"
+        f"{e_memo()} {BOLD('Send proxies as text or .txt file')}\n\n"
         f"Formats supported:\n"
         f"• {CODE('ip:port')}\n"
         f"• {CODE('ip:port:user:pass')}\n"
         f"• {CODE('user:pass@ip:port')}\n"
         f"• {CODE('socks5://ip:port')}\n\n"
-        f"⚡ Proxies tested against {BOLD('real Shopify stores')}\n"
-        f"⚡ {BOLD('30 workers')} parallel validation\n"
-        f"⚡ Only live proxies added, dead ones discarded\n\n"
-        f"{I('Send as text message or .txt file.')}\n"
-        f"{e_cross()} {CODE('/cancel')} to abort.",
+        f"{e_lightning()} Tested against {BOLD('Shopify stores')}\n"
+        f"{e_lightning()} {BOLD('30 workers')} parallel validation\n"
+        f"{e_lightning()} Dead proxies are discarded\n\n"
+        f"{e_cross()} Send {CODE('/cancel')} to abort.\n\n"
+        f"{ftr()}",
         parse_mode=ParseMode.HTML,
     )
     return WAITING_FOR_PROXY
@@ -104,12 +105,11 @@ async def receive_proxies(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Send initial "checking..." message
     msg = await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{D}\n\n"
+        f"{hdr()}\n\n"
         f"{e_refresh()} {BOLD(f'Checking {len(lines)} proxies...')}\n\n"
         f"🏪 Testing against Shopify stores\n"
         f"⚡ 30 workers parallel\n\n"
-        f"{I('Only live proxies will be added.')}\n\n{D}",
+        f"{I('Only live proxies will be added.')}\n\n{ftr()}",
         parse_mode=ParseMode.HTML,
     )
 
@@ -118,13 +118,12 @@ async def receive_proxies(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             pct = int(checked / total * 100) if total > 0 else 0
             text = (
-                f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-                f"{D}\n\n"
+                f"{hdr()}\n\n"
                 f"{e_refresh()} {BOLD(f'Validating proxies against Shopify...')}\n\n"
                 f"📊 Progress: {checked}/{total} ({pct}%)\n"
                 f"✅ Live so far: {live_count}\n"
                 f"⚡ Workers: {VALIDATION_WORKERS}\n\n"
-                f"{I('Testing each proxy on real Shopify stores...')}\n\n{D}"
+                f"{I('Testing each proxy on real Shopify stores...')}\n\n{ftr()}"
             )
             await msg.edit_text(text, parse_mode=ParseMode.HTML)
         except Exception:
@@ -137,16 +136,14 @@ async def receive_proxies(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Final message
     if result["total_tested"] > 0:
         feedback = (
-            f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-            f"{D}\n\n"
+            f"{hdr()}\n\n"
             f"{e_check_done()} {BOLD('Proxy validation complete')}\n\n"
             f"✅ Live (added): {BOLD(str(len(result['live'])))}\n"
             f"❌ Dead (discarded): {BOLD(str(len(result.get('dead', []))))}\n"
         )
     else:
         feedback = (
-            f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-            f"{D}\n\n"
+            f"{hdr()}\n\n"
             f"{e_check_done()} {BOLD('Proxy validation complete')}\n\n"
             f"✅ Live: {BOLD(str(len(result['live'])))}\n"
             f"❌ Dead/invalid: {BOLD(str(len(result.get('dead', []))))}\n"
@@ -194,8 +191,7 @@ async def proxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     msg = await update.message.reply_text(
-        f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-        f"{D}\n\n"
+        f"{hdr()}\n\n"
         f"{e_refresh()} {BOLD(f'Re-checking {count} proxies on Shopify...')}\n"
         f"⚡ 30 workers parallel\n\n"
         f"{I('Dead proxies will be removed.')}\n\n{D}",
@@ -207,8 +203,7 @@ async def proxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             pct = int(checked / total * 100) if total > 0 else 0
             text = (
-                f"{e_lightning()} 𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑 {e_lightning()}\n"
-                f"{D}\n\n"
+                f"{hdr()}\n\n"
                 f"{e_refresh()} {BOLD('Re-validating on Shopify...')}\n\n"
                 f"📊 Progress: {checked}/{total} ({pct}%)\n"
                 f"✅ Live: {live_count}\n"
