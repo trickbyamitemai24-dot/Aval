@@ -55,6 +55,12 @@ class RateLimiter:
         self._card_seen: dict[tuple[int, str], float] = {}
         # Throttle global cleanup to once per hour
         self._last_global_cleanup: float = 0.0
+        # Sliding-window anti-spam tracking: {user_id: [timestamps]}
+        self._event_windows: dict[int, list[float]] = defaultdict(list)
+        self._last_event_time: dict[int, float] = {}
+        self._AUTO_BAN_WINDOW: float = 10.0
+        self._AUTO_BAN_LIMIT: int = 20
+        self._RATE: float = 0.4
 
     def _cleanup(self, user_id: int):
         """Remove entries older than 1 hour."""
@@ -178,6 +184,27 @@ class RateLimiter:
             
         self._card_seen[key] = now
         return False
+
+    def check_user_throttle_and_spam(self, user_id: int) -> tuple[bool, bool, float]:
+        """Check per-user soft rate limit and sliding-window spam detection.
+
+        Returns: (should_ban, should_throttle, sleep_seconds)
+        """
+        now = time.monotonic()
+        times = [t for t in self._event_windows[user_id] if now - t < self._AUTO_BAN_WINDOW]
+        times.append(now)
+        self._event_windows[user_id] = times
+
+        if len(times) >= self._AUTO_BAN_LIMIT:
+            return True, False, 0.0
+
+        last = self._last_event_time.get(user_id, 0.0)
+        diff = now - last
+        sleep_sec = 0.0
+        if diff < self._RATE:
+            sleep_sec = self._RATE - diff
+        self._last_event_time[user_id] = now + sleep_sec
+        return False, sleep_sec > 0, sleep_sec
 
     def get_user_stats(self, user_id: int) -> dict:
         """Get current rate limit stats for a user."""
