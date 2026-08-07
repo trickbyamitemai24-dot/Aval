@@ -77,7 +77,7 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if data == "start_sh":
-        from templates.messages import hdr, ftr, frame
+        from templates.messages import hdr, ftr, frame, B
         await query.message.reply_text(
             f"{hdr()}\n\n{frame('SINGLE CHECK')}\n\n"
             f"{e_card()} {B('Usage:')}\n"
@@ -87,7 +87,7 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data == "start_chk":
-        from templates.messages import hdr, ftr, frame
+        from templates.messages import hdr, ftr, frame, B
         await query.message.reply_text(
             f"{hdr()}\n\n{frame('MASS CHECK')}\n\n"
             f"{e_rocket()} {B('Usage:')}\n"
