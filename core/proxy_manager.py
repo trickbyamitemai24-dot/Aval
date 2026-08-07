@@ -91,69 +91,60 @@ def normalize_proxy(raw: str) -> Optional[str]:
         return f"{scheme}://{user}:{pw}@{ip}:{port}"
     return f"{scheme}://{ip}:{port}"
 
+# Random test cards for proxy validation
+TEST_CARDS = [
+    "4031630422575208|01|2030|280",
+    "4798510629051356|12|2028|893",
+    "4532018849201948|05|2027|112",
+    "4111111111111111|12|2026|123",
+]
 
-async def _test_proxy_on_shopify(proxy: str, timeout: int = 12, shared_session: aiohttp.ClientSession = None) -> bool:
-    """Test a proxy against a real Shopify store.
+# Random Shopify test sites for proxy validation
+TEST_SITES = [
+    "https://madebycleo.myshopify.com",
+    "https://allbirds.myshopify.com",
+    "https://kith.myshopify.com",
+    "https://gymshark.myshopify.com",
+    "https://colourpop.myshopify.com",
+]
 
-    A proxy is "live" if it can fetch /products.json from any test store
-    and get a 200 response with valid JSON containing products.
+
+async def _test_proxy_on_shopify(proxy: str, timeout: int = 12, shared_session=None) -> bool:
+    """Test a proxy via checker_bridge against random site & card up to 3 times.
+
+    If result gets a decline/approval/charged (valid card response), proxy is LIVE!
+    If result is proxy error / node error 3 times, proxy is DEAD.
     """
-    test_url = random.choice(SHOPIFY_TEST_STORES)
-    try:
-        if shared_session:
-            async with shared_session.get(
-                test_url,
-                proxy=proxy,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                    "Accept": "application/json",
-                },
-            ) as resp:
-                if resp.status == 200:
-                    try:
-                        data = await resp.json()
-                        if data.get("products") is not None:
-                            return True
-                    except Exception:
-                        pass
-                if resp.status in (301, 302, 307, 308):
-                    return True
-                return False
-        else:
-            connector = aiohttp.TCPConnector(limit=0, ssl=False, resolver=ThreadedResolver())
-            async with aiohttp.ClientSession(
-                connector=connector,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as session:
-                async with session.get(
-                    test_url,
-                    proxy=proxy,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                        "Accept": "application/json",
-                    },
-                ) as resp:
-                    if resp.status == 200:
-                        try:
-                            data = await resp.json()
-                            if data.get("products") is not None:
-                                return True
-                        except Exception:
-                            pass
-                    if resp.status in (301, 302, 307, 308):
-                        return True
-                    return False
-    except Exception as e:
-        logger.debug("Proxy test failed for %s on %s: %s", proxy, test_url, e)
-        return False
+    from core.checker_bridge import check_card_site
+
+    for attempt in range(3):
+        card_str = random.choice(TEST_CARDS)
+        site_url = random.choice(TEST_SITES)
+        try:
+            res = await check_card_site(card_str, site_url, proxy)
+            resp_text = (res.get("Response") or "").lower()
+            status_text = (res.get("Status") or "").lower()
+
+            # Proxy errors mean the proxy is DEAD
+            if any(err in resp_text or err in status_text for err in [
+                "proxy error", "proxy burned", "no proxy", "could not connect",
+                "authentication failed", "all nodes failed", "timeout"
+            ]):
+                await asyncio.sleep(0.2)
+                continue
+
+            # Real response (card decline, approved, charged) means proxy IS LIVE!
+            return True
+        except Exception as e:
+            logger.debug("Proxy test exception attempt %d for %s: %s", attempt + 1, proxy, e)
+            await asyncio.sleep(0.2)
+
+    return False
 
 
 async def _test_proxy_multi_store(proxy: str, timeout: int = 12, max_attempts: int = 3, shared_session=None) -> bool:
-    """Test a proxy against multiple Shopify stores. Returns True if any succeeds."""
-    for attempt in range(max_attempts):
-        if await _test_proxy_on_shopify(proxy, timeout, shared_session=shared_session):
-            return True
-    return False
+    """Test proxy with 3-attempt fallback across random cards and sites."""
+    return await _test_proxy_on_shopify(proxy, timeout, shared_session=shared_session)
 
 
 async def _validate_batch_concurrent(
