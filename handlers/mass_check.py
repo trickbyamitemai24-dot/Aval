@@ -213,27 +213,27 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         ],
         [
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_check()} HQ ({counts.get('hq', 0)})"), callback_data=CB_PRICE_HQ, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["gem"]},
+                f"HQ ({counts.get('hq', 0)})", callback_data=CB_PRICE_HQ, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["gem"]},
             ),
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_lightning()} V40 ({counts.get('v40', 0)})"), callback_data=CB_PRICE_V40, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["lightning"]},
+                f"V40 ({counts.get('v40', 0)})", callback_data=CB_PRICE_V40, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["lightning"]},
             ),
         ],
         [
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_rocket()} Sureship ({counts.get('sureship', 0)})"), callback_data=CB_PRICE_SURESHIP, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["rocket"]},
+                f"Sureship ({counts.get('sureship', 0)})", callback_data=CB_PRICE_SURESHIP, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["rocket"]},
             ),
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_folder()} Working ({counts['all']})"), callback_data=CB_PRICE_ALL, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["folder"]},
+                f"Working ({counts['all']})", callback_data=CB_PRICE_ALL, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["folder"]},
             ),
         ],
         [
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_globe()} ALL Sites ({counts.get('all_combined', 0)})"), callback_data=CB_PRICE_ALL_COMBINED, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["globe"]},
+                f"ALL Sites ({counts.get('all_combined', 0)})", callback_data=CB_PRICE_ALL_COMBINED, api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["globe"]},
             ),
         ],
         [
-            InlineKeyboardButton(strip_tg_emoji(f"{e_cross()} Cancel"), callback_data=CB_CANCEL, api_kwargs={"style": "danger", "icon_custom_emoji_id": EMOJI_IDS["cross"]}),
+            InlineKeyboardButton("Cancel", callback_data=CB_CANCEL, api_kwargs={"style": "danger", "icon_custom_emoji_id": EMOJI_IDS["cross"]}),
         ],
     ])
 
