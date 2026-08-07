@@ -671,6 +671,7 @@ def format_amazon_check(status, card, response, bin_info=None, flag=""):
 
     status: 'APPROVED' | 'DECLINED' | 'ERROR'
     """
+    import html
     sm = {
         "APPROVED": (e_money_bag(),  "𝑨𝑷𝑷𝑹𝑶𝑽𝑬𝑫"),
         "DECLINED": (e_skull(),     "𝑫𝑬𝑪𝑳𝑰𝑵𝑬𝑫"),
@@ -685,14 +686,25 @@ def format_amazon_check(status, card, response, bin_info=None, flag=""):
     else:
         cc_full = card.masked
 
+    resp_esc = html.escape(sc(str(response)))
+
+    copy_section = ""
+    if status == "APPROVED":
+        copy_section = f"{e_clipboard()}  {B('ᴄᴏᴘʏ')}     : <code>{card.raw}</code>\n"
+
     bin_section = ""
     if bin_info:
-        bn = f"{bin_info.get('brand','?')} − {bin_info.get('type','?')} − {bin_info.get('level','?')}"
+        brand_esc = html.escape(str(bin_info.get('brand','?')))
+        type_esc = html.escape(str(bin_info.get('type','?')))
+        level_esc = html.escape(str(bin_info.get('level','?')))
+        bank_esc = html.escape(str(bin_info.get('bank','?')))
+        country_esc = html.escape(str(bin_info.get('country','?')))
+        bn = f"{brand_esc} − {type_esc} − {level_esc}"
         bin_section = (
             f"{DS}\n"
             f"{e_search()}   {B('ʙɪɴ')}      : {bn}\n"
-            f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
-            f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n"
+            f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bank_esc}\n"
+            f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {country_esc} {flag}\n"
         )
 
     return (
@@ -700,8 +712,9 @@ def format_amazon_check(status, card, response, bin_info=None, flag=""):
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
         f"{e_card()}   {B('ᴄᴄ')}       : {C(cc_full)}\n"
+        f"{copy_section}"
         f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : Amazon Auth\n"
-        f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {sc(response)}\n\n"
+        f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {resp_esc}\n\n"
         f"{bin_section}"
         f"{ftr()}"
     )
