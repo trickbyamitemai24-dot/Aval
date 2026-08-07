@@ -168,11 +168,16 @@ def format_single_check(status, card, gateway, response, price, bin_info, flag="
 
     bn = f"{brand_esc} − {type_esc} − {level_esc}"
 
+    copy_section = ""
+    if status in ("CHARGED", "LIVE", "LIVE_3DS"):
+        copy_section = f"{e_clipboard()}  {B('ᴄᴏᴘʏ')}     : <code>{card.raw}</code>\n"
+
     return (
         f"{hdr()}\n\n"
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
         f"{e_card()}   {B('ᴄᴄ')}       : <tg-spoiler>{C(cc_full)}</tg-spoiler>\n"
+        f"{copy_section}"
         f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gw_esc}\n"
         f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {resp_esc}\n"
         f"{e_dollar()}  {B('ᴘʀɪᴄᴇ')}    : ${price}\n\n"
