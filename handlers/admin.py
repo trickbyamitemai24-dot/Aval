@@ -536,9 +536,17 @@ async def backup_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # /chk_all_site — Owner only: check one card against ALL stores
 # ═════════════════════════════════════════════════════════════════════════
 
-# Pending deletion sessions: {user_id: {bad_stores: [(url, reason)], card: str}}
+# Pending deletion sessions: {user_id: {bad_stores: [(url, reason)], card: str, created_at: float}}
 _pending_deletions: dict[int, dict] = {}
 _MAX_PENDING_DELETIONS = 20
+
+
+def _clean_expired_deletions():
+    """Remove pending deletion payloads older than 30 minutes."""
+    now = _time.time()
+    expired = [uid for uid, data in _pending_deletions.items() if now - data.get("created_at", 0) > 1800]
+    for uid in expired:
+        _pending_deletions.pop(uid, None)
 
 
 @owner_only
@@ -654,15 +662,17 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elapsed = _time.time() - start_time
 
-    # Store bad stores for deletion approval (cap dict size to prevent leak)
+    # Store bad stores for deletion approval (clean expired, cap dict size)
+    _clean_expired_deletions()
     if len(_pending_deletions) >= _MAX_PENDING_DELETIONS:
         oldest_key = next(iter(_pending_deletions))
-        _pending_deletions.pop(oldest_key)
+        _pending_deletions.pop(oldest_key, None)
     _pending_deletions[user.id] = {
         "bad_stores": bad_stores,
         "card": card.masked,
         "total": total,
         "good": len(good_stores),
+        "created_at": _time.time(),
     }
 
     # Build result

