@@ -8,12 +8,13 @@ from telegram.ext import ContextTypes
 from core.database import get_or_create_user, is_banned
 from core.tier_manager import get_user_config, get_user_tier
 from core.rate_limiter import rate_limiter
-from templates.messages import format_start, format_banned, format_plans
+from templates.messages import format_start, format_banned, format_plans, B
 from templates.emojis import (
-    e_card, e_memo, e_gem, e_clipboard, e_mobile,
+    e_card, e_memo, e_gem, e_clipboard, e_mobile, e_rocket,
     e_check_done, e_warning, e_lightning, e_chart, e_mailbox,
     strip_tg_emoji, EMOJI_IDS
 )
+from templates.rich_fallback import reply_rich
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +59,7 @@ async def start_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     text = format_start(tier, card_limit, total_checks, total_charged, total_live)
 
-    await update.message.reply_text(
-        text,
-        parse_mode=ParseMode.HTML,
-        reply_markup=_start_keyboard(),
-    )
+    await reply_rich(update.message, text, reply_markup=_start_keyboard())
     logger.info("User %d (%s) started the bot [tier=%s]", user.id, user.username, tier)
 
 

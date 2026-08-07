@@ -118,9 +118,13 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 
             await asyncio.sleep(1)
             
-        if res is None or res.status == "SITE_ERROR":
+        if res is None:
             from core.checker import CheckResult
-            res = CheckResult("DEAD", "All stores returned errors — try again later", "Shopify Payments", 0.0, s or "unknown", card)
+            res = CheckResult("DEAD", "No stores available to check", "Shopify Payments", 0.0, s or "unknown", card)
+        elif res.status == "SITE_ERROR":
+            from core.checker import CheckResult
+            real_msg = res.message if (res.message and res.message.strip()) else "Store Connection Timeout"
+            res = CheckResult("DEAD", real_msg, res.gateway or "Shopify Payments", res.price or 0.0, res.store or (s or "unknown"), card)
             
         return res
 

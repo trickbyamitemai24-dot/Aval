@@ -41,7 +41,8 @@ from templates.messages import (
     format_error,
     format_tier_exceeded,
 )
-from templates.emojis import e_lightning, e_memo, e_cross, e_check_done, strip_tg_emoji, e_check, e_rocket, e_globe, e_folder
+from templates.emojis import e_lightning, e_memo, e_cross, e_check_done, strip_tg_emoji, e_check, e_rocket, e_globe, e_folder, EMOJI_IDS
+from templates.rich_fallback import reply_rich
 
 DIVIDER = "━━━━━━━━━━━━━━━━━━━━━━"
 BOLD = lambda s: f"<b>{s}</b>"
