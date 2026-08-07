@@ -1,0 +1,66 @@
+================================================================================
+          ⚡️ AURORA CHECKER — GOD-LEVEL UI & UX UPGRADE BLUEPRINT ⚡️
+          Ported & Inspired by autoShopify (520KB Bot Engine Structure)
+================================================================================
+
+1. MATHEMATICAL SANS-SERIF BOLD CONVERTER (bold() Helper)
+--------------------------------------------------------------------------------
+- Instead of raw standard <b>text</b> tags or basic markdown, autoShopify converts
+  ASCII text dynamically into Unicode Mathematical Sans-Serif Bold characters:
+    Uppercase: A-Z -> 𝗔-𝗭 (U+1D5D4 to U+1D5ED)
+    Lowercase: a-z -> 𝗮-𝘇 (U+1D5EE to U+1D607)
+    Digits:    0-9 -> 𝟬-𝟵 (U+1D7EC to U+1D7F5)
+- Example output:
+    bold("Single Check") -> 𝗦𝗶𝗻𝗴𝗹𝗲 𝗖𝗵𝗲𝗰𝗸
+    bold("Checked by:") -> 𝗖𝗵𝗲𝗰𝗸𝗲𝗱 𝗯𝘆:
+
+2. TELEGRAM PREMIUM CUSTOM EMOJIS & ICON IDS (E dict)
+--------------------------------------------------------------------------------
+- Custom emoji IDs attached directly to inline keyboard buttons using:
+    "icon_custom_emoji_id": "<custom_emoji_id>",
+    "style": "primary" | "success" | "danger"
+- Pure text button labels combined with `icon_custom_emoji_id` for crisp, 
+  high-end native Telegram rendering (no raw unicode fallback emojis inside button text).
+
+3. COMPACT REAL-TIME MASS CHECK STATUS & INLINE REPLACEMENT
+--------------------------------------------------------------------------------
+- Real-time progress updates with per-message async locks (`_MSH_EDIT_LOCKS`) to
+  prevent edit race conditions and FloodWait blocks.
+- Parallel worker execution updates a single shared message rather than sending 
+  multiple output messages.
+- Real-time status indicators:
+    Checking: ⏳ <tg-spoiler>4798510629051356|12|2028|893</tg-spoiler> checking...
+    Charged:  💰 4798 5106 2905 1356 | Shopify $1.00 | CHARGED
+    Approved: 🟢 4798 5106 2905 1356 | Live Card (Insufficient Funds)
+    Declined: 💀 4798 5106 2905 1356 | Declined (Do Not Honor)
+
+4. THREE-PAGE PAGINATED /cmds NAVIGATION
+--------------------------------------------------------------------------------
+- 3-page paginated `/cmds` menu with inline `Back` and `Next` buttons:
+    Page 1: Core Commands (Shopify / Single / Mass / Adyen / Stripe / Woo)
+    Page 2: Proxy & Tool Commands (Dorking, Webshare, SK Keys, BIN)
+    Page 3: Admin & Key Management Commands (Auth, Ban, Key Gen)
+
+5. NATIVE USER PROFILE LINKS & AUTOMATED CHANNEL MONITORS
+--------------------------------------------------------------------------------
+- User profile formatting:
+    `<a href="https://t.me/username">@username</a>` or `<a href="tg://user?id=12345">First Last</a>`
+- Instant automated pinning for CHARGED card hits in main chat.
+- Silent forwarding of LIVE / CHARGED cards to private monitor groups and 
+  channel notification channels.
+
+6. PROXY CHECKER & AUTOMATED WEBSHARE PROXY FETCHER UI
+--------------------------------------------------------------------------------
+- Interactive `/proxy` dashboard showing live vs dead proxies, with 1-tap "Check Proxy" 
+  and "Clear Proxy" buttons.
+- Real-time batch testing progress updates (`Checking... 10/30`).
+- `/freeproxy` automated NoPeCHA captcha solver UI with background job notification and 
+  "Add to My List" / "Copy All" inline buttons.
+
+7. PROPOSED IMPLEMENTATION PLAN FOR AURORA CHECKER
+--------------------------------------------------------------------------------
+[Phase 1]: Integrate `bold()` Mathematical Sans-Serif Bold converter across all templates.
+[Phase 2]: Upgrade `/cmds` and `/start` keyboards with `icon_custom_emoji_id` and 3-page pagination.
+[Phase 3]: Implement compact single-message mass check live updates with async edit locks.
+[Phase 4]: Enable automated charged hit forwarding and pinned message notifications.
+================================================================================
