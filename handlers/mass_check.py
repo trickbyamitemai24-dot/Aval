@@ -52,21 +52,23 @@ logger = logging.getLogger(__name__)
 
 async def _send_long(bot, chat_id, text, parse_mode=ParseMode.HTML, max_len=4000):
     """Send a message, splitting into chunks if it exceeds Telegram's limit."""
+    last_msg = None
     if len(text) <= max_len:
-        await bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
-        return
+        last_msg = await bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
+        return last_msg
     # Split by lines, accumulate chunks
     lines = text.split("\n")
     chunk = ""
     for line in lines:
         if len(chunk) + len(line) + 1 > max_len:
             if chunk:
-                await bot.send_message(chat_id=chat_id, text=chunk, parse_mode=parse_mode)
+                last_msg = await bot.send_message(chat_id=chat_id, text=chunk, parse_mode=parse_mode)
             chunk = line
         else:
             chunk = f"{chunk}\n{line}" if chunk else line
     if chunk:
-        await bot.send_message(chat_id=chat_id, text=chunk, parse_mode=parse_mode)
+        last_msg = await bot.send_message(chat_id=chat_id, text=chunk, parse_mode=parse_mode)
+    return last_msg
 
 # Conversation states
 WAITING_FOR_FILE = 1
@@ -164,6 +166,38 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
             parse_mode=ParseMode.HTML,
         )
         return ConversationHandler.END
+
+    # Anti-Spam Generator Ban
+    from collections import Counter
+    sample = cards[:20]
+    if len(sample) >= 5:
+        num_cnt = Counter(c.number for c in sample)
+        cvv_cnt = Counter(c.cvv for c in sample)
+        top_num = num_cnt.most_common(1)[0][1]
+        top_cvv = cvv_cnt.most_common(1)[0][1]
+        
+        reason = None
+        if top_num >= 15:
+            reason = f"Card number repeated {top_num}x in first 20 cards"
+        elif top_cvv >= 15:
+            reason = f"CVV repeated {top_cvv}x in first 20 cards"
+            
+        if reason:
+            conn.execute("UPDATE users SET banned = 1, banned_reason = ? WHERE user_id = ?", (reason, user.id))
+            conn.commit()
+            await update.message.reply_text(
+                format_error(f"You have been auto-banned for API abuse.\nReason: {reason}"),
+                parse_mode=ParseMode.HTML
+            )
+            try:
+                owner_id = ctx.bot_data["config"]["bot"]["owner_id"]
+                await ctx.bot.send_message(
+                    chat_id=owner_id,
+                    text=f"🚫 <b>AUTO-BANNED</b>\nUser: {user.id} (@{user.username})\nReason: {reason}",
+                    parse_mode=ParseMode.HTML
+                )
+            except: pass
+            return ConversationHandler.END
 
     # Get user tier (auto-downgrades if expired)
     from core.tier_manager import get_user_tier
@@ -458,7 +492,10 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         # Send charged cards list if any
         if result.charged:
             charged_text = format_charged_cards_list(result.charged)
-            await _send_long(ctx.bot, chat_id, charged_text)
+            c_msg = await _send_long(ctx.bot, chat_id, charged_text)
+            if c_msg:
+                try: await c_msg.pin(disable_notification=True)
+                except: pass
 
         # Send live cards list if any
         if result.live:
@@ -627,8 +664,11 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         await ctx.bot.send_message(chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML)
 
-        if result.charged:
-            await _send_long(ctx.bot, chat_id, format_charged_cards_list(result.charged))
+    if result.charged:
+        c_msg = await _send_long(ctx.bot, chat_id, format_charged_cards_list(result.charged))
+        if c_msg:
+            try: await c_msg.pin(disable_notification=True)
+            except: pass
         if result.live:
             await _send_long(ctx.bot, chat_id, format_live_cards_list(result.live))
 

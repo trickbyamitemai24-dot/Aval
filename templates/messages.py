@@ -251,6 +251,8 @@ def format_help():
 # ERRORS
 # ═════════════════════════════════════════════════════════════════════════
 def format_error(msg="An error occurred. Try again."):
+    if msg.startswith("<tg-emoji") or msg.startswith("❌"):
+        return msg
     return f"{e_cross()} {msg}"
 
 def format_banned():

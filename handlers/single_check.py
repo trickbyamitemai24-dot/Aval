@@ -161,6 +161,8 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Log charged cards
     if result.status == "CHARGED":
+        try: await checking_msg.pin(disable_notification=True)
+        except Exception: pass
         from core.database import log_charged_card
         log_charged_card(
             conn, user.id,
@@ -301,6 +303,8 @@ async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Log charged cards
     if result.status == "CHARGED":
+        try: await checking_msg.pin(disable_notification=True)
+        except Exception: pass
         from core.database import log_charged_card
         log_charged_card(
             conn, user.id,

@@ -79,6 +79,7 @@ from handlers.admin import (
     handle_deletion_callback,
     admin_pagination_callback,
 )
+from handlers.raw_text import handle_raw_text, cb_quick_check, cb_quick_msh
 from handlers.proxy_handler import (
     addproxy_cmd,
     receive_proxies,
@@ -298,7 +299,14 @@ def main():
     # Global error handler (catches ALL unhandled exceptions)
     app.add_error_handler(error_handler.handle_error)
 
+
+    # Auto-detect CCs in private chat
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_raw_text))
+    app.add_handler(CallbackQueryHandler(cb_quick_check, pattern=r"^quick_check:"))
+    app.add_handler(CallbackQueryHandler(cb_quick_msh, pattern=r"^quick_msh$"))
+
     logger.info("Bot handlers registered (28 commands). Starting polling...")
+
 
     # Start health check server in background thread (Railway healthcheck)
 
