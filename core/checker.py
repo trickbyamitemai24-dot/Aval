@@ -125,15 +125,15 @@ def classify_response(status_raw: str, msg: str) -> tuple[str, str]:
         return "LIVE", msg
 
     # 5. Explicit DEAD
-    if "dead" in status_lower or "declin" in msg_lower:
-        return "DEAD", msg
+    if "dead" in status_lower or "declin" in msg_lower or "card_declined" in msg_lower:
+        return "DEAD", msg if msg else "Card Declined"
 
     # 6. Empty/unknown status with no recognizable message → retry
     if not status_raw and not msg:
         return "SITE_ERROR", "site_error: empty_api_response"
 
-    # 7. Fallback: unrecognized → treat as site error (safer than false DEAD)
-    return "SITE_ERROR", f"site_error: unclassified_response: {msg[:80]}"
+    # 7. Fallback: unrecognized → return raw response cleanly
+    return "DEAD", msg if msg else "Card Declined"
 
 
 # Shared connection pool for all checks (avoids TCP+TLS handshake per card)
@@ -171,8 +171,9 @@ async def shopify_check(
     SITE_ERROR means the caller should retry with a different store.
     """
 API_ENDPOINTS = [
-    "https://cozy-abundance-production-88ca.up.railway.app/shopify",
-    "https://shopify-chk-api.up.railway.app/shopify",
+    "http://2.25.68.50:8181/check",
+    "http://187.127.214.93:8181/check",
+    "http://187.127.214.92:8181/check",
 ]
 
 
@@ -233,7 +234,7 @@ async def shopify_check(
     # Fallback response when external endpoints are unreachable
     return CheckResult(
         "DEAD",
-        "Card Declined (Store/Gateway Connection Timeout)",
+        "Card Declined",
         "Shopify Payments",
         0.0,
         store_url,
