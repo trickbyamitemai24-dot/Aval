@@ -205,7 +205,7 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     logger.info(
         "Single check: user=%d card=%s status=%s store=%s",
-        user.id, card.masked, result.status, store,
+        user.id, card.masked, result.status, result.store,
     )
 
 async def stripe_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
