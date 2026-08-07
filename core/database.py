@@ -143,17 +143,30 @@ def init_db(db_path: str) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(str(path), check_same_thread=False)
+    conn = sqlite3.connect(str(path), check_same_thread=False, timeout=30.0)
     conn.row_factory = sqlite3.Row
     # WAL mode: allows concurrent readers + single writer
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA cache_size=10000")
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA cache_size=20000")
     conn.executescript(SCHEMA)
     conn.commit()
-    logger.info("Database initialized at %s (WAL mode)", path)
+    logger.info("Database initialized at %s (WAL mode, busy_timeout=30s)", path)
     return conn
+
+
+def db_retry(fn, max_retries: int = 5, delay: float = 0.2):
+    """Execute a database function with automatic retry on operational locks."""
+    import time
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < max_retries - 1:
+                time.sleep(delay * (attempt + 1))
+            else:
+                raise
 
 
 def get_or_create_user(conn: sqlite3.Connection, user_id: int,
