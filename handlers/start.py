@@ -12,7 +12,7 @@ from templates.messages import format_start, format_banned, format_plans
 from templates.emojis import (
     e_card, e_memo, e_gem, e_clipboard, e_mobile,
     e_check_done, e_warning, e_lightning, e_chart, e_mailbox,
-    strip_tg_emoji
+    strip_tg_emoji, EMOJI_IDS
 )
 
 logger = logging.getLogger(__name__)
@@ -22,16 +22,16 @@ def _start_keyboard():
     """Inline keyboard for /start message."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(f"{strip_tg_emoji(e_card())} Single Check", callback_data="start_sh", api_kwargs={"style": "primary"}),
-            InlineKeyboardButton(f"{strip_tg_emoji(e_memo())} Mass Check", callback_data="start_chk", api_kwargs={"style": "primary"}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_card())} Single Check", callback_data="start_sh", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["card"]}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_memo())} Mass Check", callback_data="start_chk", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["memo"]}),
         ],
         [
-            InlineKeyboardButton(f"{strip_tg_emoji(e_gem())} Plans", callback_data="start_plans", api_kwargs={"style": "primary"}),
-            InlineKeyboardButton(f"{strip_tg_emoji(e_check_done())} Redeem", callback_data="start_redeem", api_kwargs={"style": "success"}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_gem())} Plans", callback_data="start_plans", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["gem"]}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_check_done())} Redeem", callback_data="start_redeem", api_kwargs={"style": "success", "icon_custom_emoji_id": EMOJI_IDS["check_done"]}),
         ],
         [
-            InlineKeyboardButton(f"{strip_tg_emoji(e_clipboard())} Status", callback_data="start_status", api_kwargs={"style": "primary"}),
-            InlineKeyboardButton(f"{strip_tg_emoji(e_mobile())} Proxies", callback_data="start_proxy", api_kwargs={"style": "primary"}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_clipboard())} Status", callback_data="start_status", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["clipboard"]}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_mobile())} Proxies", callback_data="start_proxy", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["mobile"]}),
         ],
     ])
 
