@@ -109,7 +109,8 @@ async def start_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.warning("start_plans error: %s", e)
 
     elif data == "start_redeem":
-        from templates.messages import hdr, ftr, frame
+        from templates.messages import hdr, ftr, frame, B
+        from templates.emojis import e_key
         await query.message.reply_text(
             f"{hdr()}\n\n{frame('REDEEM KEY')}\n\n"
             f"{e_key()} {B('Usage:')}\n"

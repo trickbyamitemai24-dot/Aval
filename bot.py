@@ -32,7 +32,7 @@ from utils.config_loader import load_config
 from utils.logger import setup_logging
 
 from handlers.start import start_cmd, start_callback
-from handlers.help import help_cmd
+from handlers.help import help_cmd, help_pagination_callback
 from handlers.single_check import single_check_cmd, stripe_check_cmd
 from handlers.bin_handler import bin_cmd
 from handlers.ccgen import ccgen_cmd
@@ -265,6 +265,12 @@ def main():
     app.add_handler(CallbackQueryHandler(
         admin_pagination_callback,
         pattern=r"^(keys_page_|charged_page_|ignore)",
+    ))
+
+    # Callback for help pagination
+    app.add_handler(CallbackQueryHandler(
+        help_pagination_callback,
+        pattern=r"^help_page_",
     ))
 
     # Proxy commands
