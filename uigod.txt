@@ -1,89 +1,145 @@
 ================================================================================
-  ⚡️ ULTRA GOD DEEP BREAKDOWN: GATEWAY & USER PROFILE INLINE KEYBOARDS ⚡️
-  Reverse-Engineered from autoShopify (521KB bot.py Engine)
+  ⚡️ AURORA CHECKER — THE ULTIMATE 10-PASS UI, UX & ENGINE BLUEPRINT ⚡️
+  Reverse-Engineered from autoShopify (12,188 Lines / 521KB bot.py Architecture)
 ================================================================================
 
-1. INTERACTIVE FILE CHECK KEYBOARD & RUNTIME CONTROL (quick_ran & ran_stop)
+PASS 1: SYSTEM & INFRASTRUCTURE ARCHITECTURE
 --------------------------------------------------------------------------------
-When a user uploads a `.txt` card file in private chat, autoShopify automatically 
-parses the file, extracts Luhn-valid cards (`_DedupeList`), and presents a 1-tap
-start button with native custom emoji icon styling:
+1. Deduplicated List Subclass (`_DedupeList`):
+   - Subclasses `list` with internal `_set` for O(1) `__contains__` lookups.
+   - Eliminates O(n) array scans during massive 10,000-card file parsing (prevents 
+     blocking the asyncio event loop during card extraction).
+2. ThreadPoolExecutor (`CHECKER_POOL`):
+   - Configured with `max_workers=500` to execute synchronous gateway requests 
+     without starving asyncio event loop threads.
+3. OS Resource Limit Management (`RLIMIT_NOFILE`):
+   - Dynamically elevates file descriptor soft limits to `65536` via `resource.setrlimit()` 
+     to support high-concurrency socket connections.
+4. Telegram API Pydantic Safety Patch (`_sanitize`):
+   - Intercepts raw JSON response strings from Telegram's `BaseSession.check_response`.
+   - Strips dangerous deeply-nested fields (`rich_message`, `rich_caption`, `story`) 
+     at depth > 12 to prevent Pydantic 100% CPU infinite recursion loops.
+5. Dual Rotating File Logger:
+   - `bot.log` (10MB x 5 backups) logs all INFO+ activity.
+   - `bot_error.log` (5MB x 3 backups) logs WARNING+ errors for fast triage.
 
-  A. Auto-Detected File Card Layout:
-     ✨  𝗖𝗖 𝗙𝗶𝗹𝗲 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱! 🎲
 
-     ⚡️  𝗙𝗶𝗹𝗲: <code>combo_cards.txt</code>
-     ⭐️  𝗧𝗼𝘁𝗮𝗹 𝗖𝗖𝘀: 𝟱,𝟬𝟬𝟬
-
-     ⚡️ <tg-spoiler>4798510629051356|12|2028|893</tg-spoiler>
-     ⚡️ <tg-spoiler>4532018849201948|05|2027|112</tg-spoiler>
-     ➡️ ... 𝟰,𝟵𝟵𝟴 𝗺𝗼𝗿𝗲
-
-     ➡️  𝗧𝗮𝗽 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝘀𝘁𝗮𝗿𝘁 𝗰𝗵𝗲𝗰𝗸𝗶𝗻𝗴.
-
-  B. File Start Inline Keyboard (`check_btn`):
-     [ Check 5,000 CCs (cb: quick_ran:<msg_id>, icon: 5229077409629752304, style: primary) ]
-
-  C. Active Session Control Keyboard (`stop_btn`):
-     During parallel execution (up to 100 workers/session), the status card displays:
-     [ Stop Checking (cb: ran_stop:<chat_id>:<user_id>, icon: 6114014038960638990, style: danger) ]
-
-2. USER PROFILE DASHBOARD & PLAN KEYBOARDS (cb_menu_profile)
+PASS 2: ANTI-SPAM & SECURITY MIDDLEWARE
 --------------------------------------------------------------------------------
-The `/start` -> `My Profile` inline callback renders a live user status card with HTML escaping:
+1. Per-User Throttle Middleware (`_ThrottleMiddleware`):
+   - Soft rate limit: Enforces minimum `0.4s` cooldown between user events.
+   - Sliding-window spam detector: Tracks event timestamps in a 10.0s window.
+   - Auto-ban trigger: >20 events in 10s window causes instant permanent auto-ban.
+2. Silent Drop for Banned Users:
+   - Requests from banned users (`is_banned()`) are dropped immediately at 
+     middleware entry (0 API calls, 0 processing, 0 response).
 
-- Profile Layout:
-    👤  𝗨𝘀𝗲𝗿 𝗣𝗿𝗼𝗳𝗶𝗹𝗲
 
-    ⭐️  𝗡𝗮𝗺𝗲: <a href="https://t.me/rayzenqx">@rayzenqx</a>
-    ⭐️  𝗨𝘀𝗲𝗿𝗻𝗮𝗺𝗲: @rayzenqx
-    ⭐️  𝗜𝗗: 𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵
-
-    💎  𝗣𝗹𝗮𝗻: 💎 𝗢𝘄𝗻𝗲𝗿 (𝗟𝗶𝗳𝗲𝘁𝗶𝗺𝗲)
-    ⚡️  𝗣𝗿𝗼𝘅𝘆: ✅ 𝟭𝟬 𝗽𝗿𝗼𝘅𝗶𝗲𝘀
-    🚀  𝗖𝗖 𝗟𝗶𝗺𝗶𝘁 (/𝗿𝗮𝗻): 𝟱𝟬,𝟬𝟬𝟬
-
-- Profile Action Inline Keyboard:
-    [ Back (cb: menu_back, icon: 5269720500468201056, style: primary) ]
-
-3. GATEWAY SPECIFIC COMMAND KEYBOARDS (WooCommerce ST, Stripe $1, Razorpay RZ)
+PASS 3: GENERATOR CHECKER DETECTOR & AUTO-BAN ENGINE
 --------------------------------------------------------------------------------
-Each gateway family has dedicated inline command cards registered in the bot:
+1. Regex Filename Inspection (`guard_gen_filename`):
+   - Regex `_GEN_FILENAME_PATTERN`: `r'(gen(?:erat(?:e|or|ed)?)?)'`
+   - Immediately auto-bans any non-owner who uploads a file containing keywords 
+     like `gen`, `generator`, `generated`, `scrape`.
+2. Card Pattern Threshold Inspector (`detect_gen_ccs`):
+   - Inspects sample of first 20 cards in any batch (`_GEN_SAMPLE_SIZE=20`).
+   - Rule A: Same card number repeating >= 15 times -> Instant Auto-Ban.
+   - Rule B: Same CVV value repeating >= 15 times -> Instant Auto-Ban.
+3. Auto-Ban Execution (`_do_gen_ban`):
+   - Sends user a pinned spoiler notification: `🚫 You have been auto-banned.`
+   - Formats a detailed notification card (with user ID, name, clickable profile link, 
+     file name, and exact match reason) and sends it to the Owner & all Admins.
 
-  A. WooCommerce ST Gateway Menu:
-     ➕ /sadd site — 𝗔𝗱𝗱/𝘁𝗲𝘀𝘁 𝗪𝗼𝗼𝗖𝗼𝗺𝗺𝗲𝗿𝗰𝗲 𝘀𝗶𝘁𝗲
-     ⚡️ /st cc|mm|yy|cvv — 𝗦𝗶𝗻𝗴𝗹𝗲 𝗦𝗧 𝗰𝗵𝗲𝗰𝗸
-     🚀 /mst cc ... — 𝗠𝗮𝘀𝘀 𝗦𝗧 𝗰𝗵𝗲𝗰𝗸 (𝟭𝟬 𝗶𝗻𝗹𝗶𝗻𝗲)
-     🎲 /stxt — 𝗦𝗧 𝗳𝗶𝗹𝗲 𝗰𝗵𝗲𝗰𝗸 (.𝘁𝘅𝘁)
-     🌐 /smysite — 𝗩𝗶𝗲𝘄 𝘀𝗮𝘃𝗲𝗱 𝘀𝗶𝘁𝗲
-     ❌ /srem — 𝗥𝗲𝗺𝗼𝘃𝗲 𝘀𝗮𝘃𝗲𝗱 𝘀𝗶𝘁𝗲
 
-  B. Stripe $1 Proxy Gateways:
-     ⚡️ /st1 — 𝗦𝘁𝗿𝗶𝗽𝗲 $𝟭 𝘀𝗶𝗻𝗴𝗹𝗲 (𝗽𝗿𝗼𝘅𝘆)
-     🚀 /mst1 — 𝗦𝘁𝗿𝗶𝗽𝗲 $𝟭 𝗺𝗮𝘀𝘀 (𝟮𝟬 𝗖𝗖𝘀)
-     🎲 /st1txt — 𝗦𝘁𝗿𝗶𝗽𝗲 $𝟭 𝗳𝗶𝗹𝗲 𝗰𝗵𝗲𝗰𝗸
-
-  C. Razorpay RZ Gateways:
-     ➕ /rzsite site — 𝗔𝗱𝗱/𝘁𝗲𝘀𝘁 𝗥𝗭 𝘀𝗶𝘁𝗲
-     ⚡️ /rz cc|mm|yy|cvv — 𝗦𝗶𝗻𝗴𝗹𝗲 𝗥𝗭 𝗰𝗵𝗲𝗰𝗸
-     🚀 /mrz cc ... — 𝗠𝗮𝘀𝘀 𝗥𝗭 𝗰𝗵𝗲𝗰𝗸 (𝟭𝟬 𝗶𝗻𝗹𝗶𝗻𝗲)
-     🎲 /rztxt — 𝗥𝗭 𝗳𝗶𝗹𝗲 𝗰𝗵𝗲𝗰𝗸 (.𝘁𝘅𝘁)
-
-4. WEBSHARE FREE PROXY CLAIM KEYBOARD FLOW
+PASS 4: ACCESS CONTROL & MANDATORY JOIN VERIFICATION
 --------------------------------------------------------------------------------
-When claiming free proxies (`/freeproxy`), the bot updates the waiting card with:
+1. Dual Channel/Group Membership Check (`check_user_joined`):
+   - Verifies membership in both Channel (`join_channel_id`) and Group (`join_chat_id`).
+2. High-Performance API Cache:
+   - `Joined=True` cached for 300s (5 minutes).
+   - `Joined=False` cached for 30s (allows fast re-checking after user joins).
+   - `force=True` flag on the `Verify Joined` callback (`verify_join`) forces an instant, 
+     un-cached Telegram API call.
+3. Access Restriction Card (`JOIN_MSG` & `join_keyboard`):
+   - Displays custom emoji icons (`chat`, `chat2`, `check`) with primary/success button styling.
 
-  [ Copy All (cb: freeproxy_copy:<uid>, icon: 5201691993775818138, style: primary) ]
-  [ Add to My List (cb: freeproxy_add:<uid>, icon: 5253652327734192243, style: success) ]
 
-After tapping "Add to My List", the button automatically morphs into:
-  [ Done (cb: noop, icon: 5472250091332993630, style: success) ]
-
-5. COMPLETE UI ENGINE CODE ARCHITECTURE FOR AURORA
+PASS 5: TYPOGRAPHY, EMBEDDED FONTS & CUSTOM EMOJIS
 --------------------------------------------------------------------------------
-To achieve 100% feature parity with autoShopify, Aurora Checker will integrate:
-1. `quick_ran` auto-detected file inline start & stop keyboards.
-2. Custom emoji styled `back_keyboard()`, `menu_keyboard()`, and `join_keyboard()`.
-3. In-memory `_RAN_STOP_FLAGS` for real-time mass check cancellation.
-4. Auto-transforming button states (`Add to My List` -> `Done`).
+1. Mathematical Sans-Serif Bold Converter (`bold()`):
+   - Dynamically maps ASCII text to Unicode Mathematical Sans-Serif Bold (`𝗔-𝗭`, `𝗮-𝘇`, `𝟬-𝟵`).
+2. Mathematical Italic Converter (`_to_mi()`):
+   - Maps ASCII text to Mathematical Italic (`𝜀𝑟𝑎𝑦𝑧𝑒𝑛𝑞𝑥`) for user mentions and hit headers.
+3. Premium Custom Emoji Wrapper (`pe()`):
+   - Renders custom Telegram emojis: `<tg-emoji emoji-id="{id}">⚡</tg-emoji>`.
+4. Card Brand Custom Emojis (`brand_emoji()`):
+   - Renders native custom emoji brand icons for Visa, Mastercard, and Amex.
+
+
+PASS 6: PROXY MANAGEMENT ENGINE & BATCH TESTER
+--------------------------------------------------------------------------------
+1. Multi-Format Storage (`proxy.json`):
+   - Supports `host:port`, `host:port:user:pass`, `user:pass@host:port`, `socks5://...`.
+   - Max 30 proxies per user (`MAX_PROXIES_PER_USER=30`).
+2. Interactive Batch Tester (`cb_check_proxy`):
+   - Tests proxies in batches of 10 with live status card updates (`Working: X | Dead: Y | Tested: N/30`).
+   - Automatically purges dead proxies upon test completion and saves only working ones.
+
+
+PASS 7: AUTOMATED WEBSHARE PROXY SOLVER & CAPTCHA ENGINE
+--------------------------------------------------------------------------------
+1. Automated Solver Command (`/freeproxy`):
+   - Solves ReCAPTCHA via NoPeCHA API / direct tokenization and registers a free Webshare.io account.
+   - Background task (`_freeproxy_bg`) with 180s timeout prevents Telegram handler blocks.
+2. Cooldown Tracking (`freeproxy_cooldown.json` / `freeproxy_data.json`):
+   - Enforces 24-hour claim cooldown per user (Owner bypasses).
+3. State-Morphing Keyboard Flow:
+   - Initial card: `[ Copy All ]` & `[ Add to My List ]`.
+   - Upon clicking "Add to My List", button morphs in-place to `[ Done ]`.
+
+
+PASS 8: AUTOMATED BRAVE SEARCH DORKER MODULE
+--------------------------------------------------------------------------------
+1. Brave Search Scraper (`/dork <keyword>`):
+   - Scrapes organic search URLs across multiple pages from `search.brave.com` using `curl_cffi` `chrome131` TLS spoofing.
+2. Domain Processing:
+   - Root domain extraction (`_root_domain`) and platform blocklist filtering (`_BLOCKED_DOMAINS`).
+3. Delivery:
+   - Generates formatted `.txt` document (`dork_<keyword>.txt`) with custom header banner and sends directly to chat.
+
+
+PASS 9: CARD CHECKING ENGINES, MULTI-CHECKERS & COMPACT CARDS
+--------------------------------------------------------------------------------
+1. Core Commands:
+   - `/sh` (Single Shopify), `/msh` (Mass Shopify 100), `/ran` (File Mass 50,000).
+   - `/st`, `/mst`, `/stxt` (WooCommerce ST Gateways).
+   - `/st1`, `/mst1`, `/st1txt` (Stripe $1 Proxy Gateways).
+   - `/skadd`, `/skcvv`, `/mskcvv`, `/sktxt` (Stripe SK $1 CVV Charge Engine).
+   - `/rzsite`, `/rz`, `/mrz`, `/rztxt` (Razorpay Gateways).
+2. Compact Card Result Block (`_format_compact_result`):
+   - Status header, spoiler CC, gate, price, and grouped BIN info line:
+     `VISA | CREDIT | CLASSIC | CAPITAL ONE | 🇺🇸 USA`
+3. Async Edit Locks (`_MSH_EDIT_LOCKS`):
+   - Per-message locks (`asyncio.Lock()`) serialize status edits during 100-worker mass checks.
+
+
+PASS 10: ADMINISTRATIVE DASHBOARD & HIT BROADCASTING
+--------------------------------------------------------------------------------
+1. Admin Commands:
+   - `/admin`, `/auth`, `/unauth`, `/ban`, `/unban`, `/key`.
+2. Automated Community Hit Broadcast (`_send_charged_notification`):
+   - Posts styled hit announcement cards to community channels (`join_chat_id`) for `Order Placed` / `Insufficient Funds` hits.
+3. Silent Hit Forwarding (`_send_approved`):
+   - Forwards live/approved cards silently to private approved groups (`auth.APPROVED_GROUP_ID`).
+4. Pinned Message Notifications:
+   - Automatically pins the status card in chat whenever a `Charged` card hit occurs.
+
+================================================================================
+                   COMPLETE CODE IMPLEMENTATION ARCHITECTURE
+================================================================================
+1. [core/typography.py]: `bold()` (Sans-Serif Bold) and `_to_mi()` (Italic).
+2. [core/antispam.py]: `_ThrottleMiddleware` & `detect_gen_ccs` auto-ban rules.
+3. [core/dork.py]: Multi-page Brave Search URL scraper.
+4. [core/webshare.py]: ReCAPTCHA solver & automated Webshare proxy fetcher.
+5. [templates/messages.py]: Upgrade single check, mass check, profile, and help layouts.
 ================================================================================
