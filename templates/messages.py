@@ -409,7 +409,7 @@ def format_mass_check_summary_card(result) -> str:
     hits_text = "\n".join(hits_lines) if hits_lines else "<i>No hits found</i>"
 
     return (
-        f'<tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji> <b>𝐄𝐕𝐄𝐋𝐘𝐍 𝐂𝐇𝐄𝐂𝐊𝐄𝐑</b> <tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji>\n\n'
+        f'<tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji> <b>𝐀𝐔𝐑𝐎𝐑𝐀 𝐂𝐇𝐄𝐂𝐊𝐄𝐑</b> <tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji>\n\n'
         f'<tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji> <b>𝐑𝐞𝐬𝐮𝐥𝐭𝐬</b>\n'
         f'<tg-emoji emoji-id="5447453226498552490">💳</tg-emoji> <b>Total:</b> {total}\n'
         f'<tg-emoji emoji-id="5231200819986047254">📊</tg-emoji> <b>Checked:</b> {checked}\n'
