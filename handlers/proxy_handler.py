@@ -229,12 +229,24 @@ async def getproxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     from core.webshare import get_free_proxies
     from io import BytesIO
+    from pathlib import Path
 
     try:
         proxies = await get_free_proxies(count, user_id=user.id)
         if not proxies:
+            # Fallback to reading live proxies from global proxy.txt pool
+            p_path = Path("proxy.txt")
+            if p_path.exists():
+                with open(p_path, "r", encoding="utf-8") as f:
+                    lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+                    if lines:
+                        import random
+                        random.shuffle(lines)
+                        proxies = lines[:count]
+
+        if not proxies:
             await msg.edit_text(
-                format_error("Failed to generate proxies. Please try again later."),
+                format_error("No proxies available at the moment. Add some with /addproxy!"),
                 parse_mode=ParseMode.HTML,
             )
             return
@@ -320,10 +332,34 @@ async def proxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     result = await pm.clean_proxies(user.id, progress_callback=progress_cb)
 
-    await msg.edit_text(
-        format_proxy_cleaned(result["live"], result["dead"]),
-        parse_mode=ParseMode.HTML,
-    )
+    # Fetch updated working proxies for user
+    rows = conn.execute(
+        "SELECT proxy FROM user_proxies WHERE user_id = ? AND status = 'live'",
+        (user.id,),
+    ).fetchall()
+    working_proxies = [r["proxy"] for r in rows]
+
+    caption_text = format_proxy_cleaned(result["live"], result["dead"])
+
+    if working_proxies:
+        from io import BytesIO
+        txt_content = "\n".join(working_proxies).encode("utf-8")
+        doc = BytesIO(txt_content)
+        doc.name = "workingproxy.txt"
+
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+
+        await ctx.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=doc,
+            caption=caption_text,
+            parse_mode=ParseMode.HTML,
+        )
+    else:
+        await msg.edit_text(caption_text, parse_mode=ParseMode.HTML)
 
 
 async def clearproxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
