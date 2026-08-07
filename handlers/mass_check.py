@@ -664,11 +664,11 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         await ctx.bot.send_message(chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML)
 
-    if result.charged:
-        c_msg = await _send_long(ctx.bot, chat_id, format_charged_cards_list(result.charged))
-        if c_msg:
-            try: await c_msg.pin(disable_notification=True)
-            except: pass
+        if result.charged:
+            c_msg = await _send_long(ctx.bot, chat_id, format_charged_cards_list(result.charged))
+            if c_msg:
+                try: await c_msg.pin(disable_notification=True)
+                except: pass
         if result.live:
             await _send_long(ctx.bot, chat_id, format_live_cards_list(result.live))
 
