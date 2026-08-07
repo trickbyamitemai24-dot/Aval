@@ -1,105 +1,82 @@
 ================================================================================
-      ⚡️ DEEP ARCHITECTURAL BREAKDOWN & UI SPECIFICATION (uigod.txt) ⚡️
-      Complete reverse-engineering of autoShopify (521KB bot.py Engine)
+  ⚡️ DEEP ARCHITECTURAL BREAKDOWN: /start COMMAND & INLINE KEYBOARDS ⚡️
+  Reverse-Engineered from autoShopify (521KB bot.py Engine)
 ================================================================================
 
-1. MATHEMATICAL FONT CONVERTERS (Dynamic Unicode Typography)
+1. DUAL-CHANNEL / GROUP JOIN VERIFICATION FLOW
 --------------------------------------------------------------------------------
-autoShopify utilizes custom character-mapping routines to render non-HTML 
-rich typography that displays natively across all Telegram mobile & desktop clients:
+Before presenting the main menu, the bot checks if the user has joined both the
+official Channel (`join_channel_id`) and Group (`join_chat_id`).
 
-  A. MATHEMATICAL SANS-SERIF BOLD (bold() Helper):
-     - Maps ASCII chars A-Z, a-z, 0-9 to U+1D5D4, U+1D5EE, U+1D7EC blocks.
-     - Usage: Card numbers, status labels, BIN values, button text.
-     - Function:
-         bold("Single Check") -> 𝗦𝗶𝗻𝗴𝗹𝗲 𝗖𝗵𝗲𝗰𝗸
-         bold("Order Placed!") -> 𝗢𝗿𝗱𝗲𝗿 𝗣𝗹𝗮𝗰𝗲𝗱!
+- Anti-Spam API Cache (`check_user_joined()`):
+    Positive results (Joined=True) cached for 300 seconds (5 min).
+    Negative results (Joined=False) cached for 30 seconds (allows fast verify).
+    `force=True` parameter used on the "Verify Joined" button to bypass cache instantly.
 
-  B. MATHEMATICAL ITALIC (_to_mi() Helper):
-     - Maps ASCII chars to Mathematical Italic (U+1D434, U+1D44E) with 'h' -> \u210E.
-     - Usage: User profile names (@username), channel notifications, merchant store labels.
-     - Function:
-         _to_mi("@rayzenqx") -> 𝜀𝑟𝑎𝑦𝑧𝑒𝑛𝑞𝑥
+- `JOIN_MSG` Format:
+    ⚠️  𝗔𝗰𝗰𝗲𝘀𝘀 𝗥𝗲𝘀𝘁𝗿𝗶𝗰𝘁𝗲𝗱
 
-2. TELEGRAM PREMIUM CUSTOM EMOJI SYSTEM (pe() & E/R Dictionaries)
+    ⚡️  𝗬𝗼𝘂 𝗺𝘂𝘀𝘁 𝗷𝗼𝗶𝗻 𝗼𝘂𝗿 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝗮𝗻𝗱 𝗴𝗿𝗼𝘂𝗽 𝘁𝗼 𝘂𝘀𝗲 𝘁𝗵𝗶𝘀 𝗯𝗼𝘁.
+
+    🔗  𝗧𝗮𝗽 𝘁𝗵𝗲 𝗯𝘂𝘁𝘁𝗼𝗻𝘀 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝗷𝗼𝗶𝗻, 𝘁𝗵𝗲𝗻 𝘁𝗮𝗽 𝗩𝗲𝗿𝗶𝗳𝘆.
+
+- `join_keyboard()` Inline Structure:
+    [ Join Channel (URL, icon: chat, style: primary) ]  [ Join Group (URL, icon: chat2, style: primary) ]
+    [ Verify Joined (cb: verify_join, icon: check, style: success) ]
+
+2. MAIN MENU (/start WELCOME MESSAGE & KEYBOARD)
 --------------------------------------------------------------------------------
-- Function: pe(emoji_id: str) -> f'<tg-emoji emoji-id="{emoji_id}">⚡</tg-emoji>'
-- Strict UI Rule: Zero standard Unicode emojis inside inline button labels or message text!
-  All visual icons use Telegram's `<tg-emoji>` custom emoji IDs.
+Once verified, `/start` returns the main dashboard:
 
-  Card Brand Custom Emojis (R dictionary):
-    - Visa:       pe("5298970748172385213")
-    - Mastercard: pe("5355269226732995665")
-    - Amex:       pe("4983234121556820510")
+- `WELCOME_MSG` Format:
+    💎  𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗵𝗼𝗽𝗶𝗳𝘆 𝗖𝗖 𝗖𝗵𝗲𝗰𝗸𝗲𝗿
 
-  Response State Custom Emojis:
-    - Order Placed / Charged: pe("5226656353744862682") (Gem / Diamond)
-    - Insufficient Funds:     pe("5472250091332993630") (Double Checkmark)
-    - CCN Live / 3DS:         pe("5989800724312101453") (Green Shield)
-    - Declined:               pe("6023909739669229757") (Skull / Cross)
+    ⚡️  𝗛𝗶𝗴𝗵-𝘀𝗽𝗲𝗲𝗱 𝗦𝗵𝗼𝗽𝗶𝗳𝘆 𝗴𝗮𝘁𝗲𝘄𝗮𝘆 𝗰𝗵𝗲𝗰𝗸𝗲𝗿
+    ✅  𝗦𝘂𝗽𝗽𝗼𝗿𝘁𝘀 𝗮𝗹𝗹 𝗽𝗿𝗼𝘅𝘆 𝗳𝗼𝗿𝗺𝗮𝘁𝘀
+    🌐  𝗠𝘂𝗹𝘁𝗶-𝘀𝗶𝘁𝗲 𝗿𝗼𝘁𝗮𝘁𝗶𝗼𝗻 𝘄𝗶𝘁𝗵 𝗿𝗲𝘁𝗿𝘆 𝗹𝗼𝗴𝗶𝗰
 
-3. COMPACT SINGLE-MESSAGE REAL-TIME MASS CHECK ENGINE (_msh)
+    ⭐️  𝗨𝘀𝗲 𝘁𝗵𝗲 𝗺𝗲𝗻𝘂 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝗴𝗲𝘁 𝘀𝘁𝗮𝗿𝘁𝗲𝗱:
+
+- `menu_keyboard()` Inline Structure:
+    [ CMDS (cb: menu_check, icon: 5445353829304387411, style: success) ]  [ Set Proxy (cb: menu_proxy, icon: 5796407074346767851, style: success) ]
+    [ My Profile (cb: menu_profile, icon: 5978784790327856236, style: primary) ]
+
+3. INLINE CALLBACK CARD NAVIGATION SYSTEM
 --------------------------------------------------------------------------------
-- Instead of spamming multiple edit calls or separate messages, autoShopify maintains
-  a single status message per mass check run.
-- Single Message Layout:
-    ⚡️ 𝗠𝗮𝘀𝘀 𝗖𝗵𝗲𝗰𝗸 [2/5]
+Tapping any main menu button smoothly edits the existing message (`safe_edit`) 
+into a dedicated framed interface with a single blue `Back` button:
 
-    🟢 𝗢𝗿𝗱𝗲𝗿 𝗣𝗹𝗮𝗰𝗲𝗱!
-    💳 𝗖𝗖: <tg-spoiler>4798510629051356|12|2028|893</tg-spoiler>
-    🚪 𝗚𝗮𝘁𝗲: 𝗦𝗵𝗼𝗽𝗶𝗳𝘆 $𝟭.𝟬𝟬
-    💵 𝗣𝗿𝗶𝗰𝗲: $𝟭.𝟬𝟬
-    🔍 𝗕𝗜𝗡: 𝗩𝗜𝗦𝗔 | 𝗖𝗥𝗘𝗗𝗜𝗧 | 𝗖𝗟𝗔𝗦𝗦𝗜𝗖 | 𝗖𝗔𝗣𝗜𝗧𝗔𝗟 𝗢𝗡𝗘 | 🇺🇸 𝗨𝗦𝗔
+  A. `menu_check` (CMDS List):
+     - Displays full command directory grouped into Shopify, WooCommerce (ST), 
+       Stripe $1, Adyen, Razorpay (RZ), Proxy, and Admin sections.
+     - Bottom Keyboard: `back_keyboard()` -> [ Back (cb: menu_back, icon: 5269720500468201056, style: primary) ]
 
-    ⏳ <tg-spoiler>4532018849201948|05|2027|112</tg-spoiler> 𝗰𝗵𝗲𝗰𝗸𝗶𝗻𝗴...
+  B. `menu_proxy` (Proxy Dashboard):
+     - Format:
+         🔗  𝗣𝗿𝗼𝘅𝘆 𝗠𝗮𝗻𝗮𝗴𝗲𝗿
+         ➡️  /proxy host:port:user:pass
+         ➡️  /myproxy — 𝗩𝗶𝗲𝘄 𝗰𝘂𝗿𝗿𝗲𝗻𝘁 𝗽𝗿𝗼𝘅𝘆
+         ➡️  /rmproxy — 𝗥𝗲𝗺𝗼𝘃𝗲 𝗽𝗿𝗼𝘅𝘆
+         🎁  /freeproxy — 𝗚𝗲𝘁 𝟭𝟬 𝗳𝗿𝗲𝗲 𝗽𝗿𝗼𝘅𝗶𝗲𝘀 (𝟮𝟰𝗵 𝗰𝗼𝗼𝗹𝗱𝗼𝘄𝗻)
+         🌐  /dork keyword — 𝗕𝗿𝗮𝘃𝗲 𝗦𝗲𝗮𝗿𝗰𝗵 𝗨𝗥𝗟 𝘀𝗰𝗿𝗮𝗽𝗲𝗿
 
-    👤 𝗖𝗵𝗲𝗰𝗸𝗲𝗱 𝗯𝘆: <a href="https://t.me/rayzenqx">@rayzenqx</a>
+  C. `menu_profile` (User Profile Card):
+     - Format:
+         👤  𝗨𝘀𝗲𝗿 𝗣𝗿𝗼𝗳𝗶𝗹𝗲
+         ⭐️  𝗡𝗮𝗺𝗲: <a href="https://t.me/rayzenqx">@rayzenqx</a>
+         ⭐️  𝗨𝘀𝗲𝗿𝗻𝗮𝗺𝗲: @rayzenqx
+         ⭐️  𝗜𝗗: 𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵
 
-- Message Concurrency Protection:
-    Per-message locks (`_MSH_EDIT_LOCKS[msg_id] = asyncio.Lock()`) serialize
-    `safe_edit` invocations so worker threads never race or cause Telegram API 402/429 limits.
+         💎  𝗣𝗹𝗮𝗻: 💎 𝗢𝘄𝗻𝗲𝗿 (𝗟𝗶𝗳𝗲𝘁𝗶𝗺𝗲)
+         ⚡️  𝗣𝗿𝗼𝘅𝘆: ✅ 𝟭𝟬 𝗽𝗿𝗼𝘅𝗶𝗲𝘀
+         🚀  𝗖𝗖 𝗟𝗶𝗺𝗶𝘁 (/𝗿𝗮𝗻): 𝟱𝟬,𝟬𝟬𝟬
 
-4. AUTOMATED CHANNEL HIT NOTIFICATIONS (_send_charged_notification)
+4. TECHNICAL ADVANTAGES FOR AURORA CHECKER
 --------------------------------------------------------------------------------
-When a card hits `Charged` or `Insufficient Funds`, the bot formats a premium
-framed announcement card and automatically posts it to the community channel (`join_chat_id`):
-
-  ꒰ 💎 ꒱  𝗢𝗥𝗗𝗘𝗥 𝗣𝗟𝗔𝗖𝗘𝗗  ꒰ 💎 ꒱
-
-  👤  𝜀𝑟𝑎𝑦𝑧𝑒𝑛𝑞𝑥
-  📛  𝑅𝑎𝑦𝑧𝑒𝑛
-
-  ━━━━━━━━━━━━━━━━━━━━
-
-  💎  𝗢𝗿𝗱𝗲𝗿 𝗣𝗹𝗮𝗰𝗲𝗱
-  💵  $𝟭.𝟬𝟬
-  🚪  𝗦𝗵𝗼𝗽𝗶𝗳𝘆
-  🚪  𝟯𝗗 𝗕𝘆𝗽𝗮𝘀𝘀𝗲𝗱
-
-5. INTERACTIVE PROXY MANAGEMENT & WEBSHARE BACKGROUND SOLVER UI
---------------------------------------------------------------------------------
-- `/proxy` command displays active proxy count, type (HTTP/SOCKS5), and latency.
-- Inline "Check Proxy" button triggers batch testing (`testing 10/30...`) and 
-  automatically purges dead proxies from the user's saved list.
-- `/freeproxy` command launches a background solver task (`_freeproxy_bg`), 
-  returning an instant status card ("Solving captcha & registering... takes 30-90s").
-  When complete, it updates the card with "Copy All" and "Add to My List" custom emoji buttons.
-
-6. PAGINATED 3-PAGE `/cmds` NAVIGATION SYSTEM
---------------------------------------------------------------------------------
-- 3-page paginated `/cmds` menu with inline `Back` and `Next` buttons:
-    Page 1: Core Gateways (Shopify, Stripe, WooCommerce, Adyen)
-    Page 2: Proxy Tools (Dorking, Webshare, SK Key Management, BIN Lookup)
-    Page 3: Admin Commands (Auth, Ban, Key Generation, Stats)
-- Inline button layout:
-    [ Back (icon: help_prev) ]  [ 1/3 (style: danger) ]  [ Next (icon: help_next) ]
-
-================================================================================
-                      FULL IMPLEMENTATION ROADMAP FOR AURORA
-================================================================================
-1. [core/typography.py]: Add `bold(text)` and `_to_mi(text)` Unicode typography modules.
-2. [templates/messages.py]: Refactor single check, mass check, and help formatting to use
-   `bold()` typography and compact `_format_compact_result` layout.
-3. [handlers/mass_check.py]: Implement `_MSH_EDIT_LOCKS` async message locking.
-4. [handlers/notification.py]: Implement `_send_charged_notification()` channel poster.
+1. Single Message In-Place Editing: Zero clutter in chat history; callbacks update
+   the existing message state instead of sending new messages.
+2. Custom Emoji Integration: Native Telegram inline button styles (`primary`/`success`/`danger`)
+   with 64-bit Telegram custom emoji IDs.
+3. Fail-Safe HTML Escaping: `_html.escape()` applied to all dynamic user fields (names,
+   usernames, proxies) to prevent malformed HTML Telegram exceptions.
 ================================================================================
