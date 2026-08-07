@@ -26,7 +26,7 @@ def setup_logging(log_file: str = "logs/aurora.log", level: str = "INFO") -> Non
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
     root.handlers.clear()
 
-    # File handler (rotating, 10MB, 5 backups)
+    # File handler (rotating, 10MB, 5 backups) — INFO+
     try:
         file_handler = RotatingFileHandler(
             str(log_path),
@@ -39,6 +39,21 @@ def setup_logging(log_file: str = "logs/aurora.log", level: str = "INFO") -> Non
     except Exception:
         pass  # If file logging fails (read-only fs), skip it
 
+    # Error File handler (rotating, 5MB, 3 backups) — WARNING+
+    try:
+        err_path = log_path.parent / "aurora_error.log"
+        err_handler = RotatingFileHandler(
+            str(err_path),
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        err_handler.setLevel(logging.WARNING)
+        err_handler.setFormatter(fmt)
+        root.addHandler(err_handler)
+    except Exception:
+        pass
+
     # Console handler — simple StreamHandler (Docker-safe)
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(fmt)
@@ -48,3 +63,5 @@ def setup_logging(log_file: str = "logs/aurora.log", level: str = "INFO") -> Non
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("telegram").setLevel(logging.INFO)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("hpack").setLevel(logging.WARNING)
