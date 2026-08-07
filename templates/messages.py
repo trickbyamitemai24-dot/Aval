@@ -143,6 +143,7 @@ def _ist_now() -> str:
 
 
 def format_single_check(status, card, gateway, response, price, bin_info, flag=""):
+    import html
     sm = {
         "CHARGED":  (e_money_bag(),  "𝑪𝑯𝑨𝑹𝑮𝑬𝑫"),
         "LIVE":     (e_check_done(), "𝑳𝑰𝑽𝑬 𝑪𝑨𝑹𝑫"),
@@ -157,20 +158,28 @@ def format_single_check(status, card, gateway, response, price, bin_info, flag="
     else:
         cc_full = card.masked
 
-    bn = f"{bin_info.get('brand','?')} − {bin_info.get('type','?')} − {bin_info.get('level','?')}"
+    brand_esc = html.escape(str(bin_info.get('brand','?')))
+    type_esc = html.escape(str(bin_info.get('type','?')))
+    level_esc = html.escape(str(bin_info.get('level','?')))
+    bank_esc = html.escape(str(bin_info.get('bank','?')))
+    country_esc = html.escape(str(bin_info.get('country','?')))
+    gw_esc = html.escape(str(gateway))
+    resp_esc = html.escape(sc(str(response)))
+
+    bn = f"{brand_esc} − {type_esc} − {level_esc}"
 
     return (
         f"{hdr()}\n\n"
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
         f"{e_card()}   {B('ᴄᴄ')}       : <tg-spoiler>{C(cc_full)}</tg-spoiler>\n"
-        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gateway}\n"
-        f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {sc(response)}\n"
+        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gw_esc}\n"
+        f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {resp_esc}\n"
         f"{e_dollar()}  {B('ᴘʀɪᴄᴇ')}    : ${price}\n\n"
         f"{DS}\n"
         f"{e_search()}   {B('ʙɪɴ')}      : {bn}\n"
-        f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bin_info.get('bank','?')}\n"
-        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n"
+        f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bank_esc}\n"
+        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {country_esc} {flag}\n"
         f"{e_timer()} {B('ᴛɪᴍᴇ')}    : {_ist_now()} IST\n\n"
         f"{ftr()}"
     )

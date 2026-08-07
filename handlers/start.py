@@ -22,12 +22,12 @@ def _start_keyboard():
     """Inline keyboard for /start message."""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(f"{strip_tg_emoji(e_card())} Single Check", callback_data="start_sh"),
-            InlineKeyboardButton(f"{strip_tg_emoji(e_memo())} Mass Check", callback_data="start_chk"),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_card())} Single Check", callback_data="start_sh", api_kwargs={"style": "primary"}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_memo())} Mass Check", callback_data="start_chk", api_kwargs={"style": "primary"}),
         ],
         [
             InlineKeyboardButton(f"{strip_tg_emoji(e_gem())} Plans", callback_data="start_plans"),
-            InlineKeyboardButton(f"{strip_tg_emoji(e_gem())} Redeem", callback_data="start_redeem"),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_check_done())} Redeem", callback_data="start_redeem", api_kwargs={"style": "success"}),
         ],
         [
             InlineKeyboardButton(f"{strip_tg_emoji(e_clipboard())} Status", callback_data="start_status"),

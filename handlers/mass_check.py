@@ -213,23 +213,23 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         ],
         [
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_check()} HQ ({counts.get('hq', 0)})"), callback_data=CB_PRICE_HQ,
+                strip_tg_emoji(f"{e_check()} HQ ({counts.get('hq', 0)})"), callback_data=CB_PRICE_HQ, api_kwargs={"style": "primary"},
             ),
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_lightning()} V40 ({counts.get('v40', 0)})"), callback_data=CB_PRICE_V40,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                strip_tg_emoji(f"{e_rocket()} Sureship ({counts.get('sureship', 0)})"), callback_data=CB_PRICE_SURESHIP,
-            ),
-            InlineKeyboardButton(
-                strip_tg_emoji(f"{e_folder()} Working ({counts['all']})"), callback_data=CB_PRICE_ALL,
+                strip_tg_emoji(f"{e_lightning()} V40 ({counts.get('v40', 0)})"), callback_data=CB_PRICE_V40, api_kwargs={"style": "primary"},
             ),
         ],
         [
             InlineKeyboardButton(
-                strip_tg_emoji(f"{e_globe()} ALL Sites ({counts.get('all_combined', 0)})"), callback_data=CB_PRICE_ALL_COMBINED,
+                strip_tg_emoji(f"{e_rocket()} Sureship ({counts.get('sureship', 0)})"), callback_data=CB_PRICE_SURESHIP, api_kwargs={"style": "primary"},
+            ),
+            InlineKeyboardButton(
+                strip_tg_emoji(f"{e_folder()} Working ({counts['all']})"), callback_data=CB_PRICE_ALL, api_kwargs={"style": "primary"},
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                strip_tg_emoji(f"{e_globe()} ALL Sites ({counts.get('all_combined', 0)})"), callback_data=CB_PRICE_ALL_COMBINED, api_kwargs={"style": "primary"},
             ),
         ],
         [
