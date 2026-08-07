@@ -168,24 +168,25 @@ def format_single_check(status, card, gateway, response, price, bin_info, flag="
 
     bn = f"{brand_esc} − {type_esc} − {level_esc}"
 
+    from core.typography import bold
     copy_section = ""
     if status in ("CHARGED", "LIVE", "LIVE_3DS"):
-        copy_section = f"{e_clipboard()}  {B('ᴄᴏᴘʏ')}     : <code>{card.raw}</code>\n"
+        copy_section = f"{e_clipboard()}   {bold('Copy')}     : <code>{card.raw}</code>\n"
 
     return (
         f"{hdr()}\n\n"
         f"{frame(label)}\n"
         f"   {ei} {ei} {ei}\n\n"
-        f"{e_card()}   {B('ᴄᴄ')}       : <tg-spoiler>{C(cc_full)}</tg-spoiler>\n"
+        f"{e_card()}   {bold('CC')}       : <tg-spoiler>{C(cc_full)}</tg-spoiler>\n"
         f"{copy_section}"
-        f"{e_globe()}   {B('ɢᴀᴛᴇᴡᴀʏ')}  : {gw_esc}\n"
-        f"{e_memo()}   {B('ʀᴇsᴘᴏɴsᴇ')} : {resp_esc}\n"
-        f"{e_dollar()}  {B('ᴘʀɪᴄᴇ')}    : ${price}\n\n"
+        f"{e_globe()}   {bold('Gateway')}  : {gw_esc}\n"
+        f"{e_memo()}   {bold('Response')} : {resp_esc}\n"
+        f"{e_dollar()}  {bold('Price')}    : ${price}\n\n"
         f"{DS}\n"
-        f"{e_search()}   {B('ʙɪɴ')}      : {bn}\n"
-        f"{e_bank()}  {B('ʙᴀɴᴋ')}     : {bank_esc}\n"
-        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {country_esc} {flag}\n"
-        f"{e_timer()} {B('ᴛɪᴍᴇ')}    : {_ist_now()} IST\n\n"
+        f"{e_search()}   {bold('BIN')}      : {bn}\n"
+        f"{e_bank()}  {bold('Bank')}     : {bank_esc}\n"
+        f"{e_earth()} {bold('Country')}  : {country_esc} {flag}\n"
+        f"{e_timer()} {bold('Time')}     : {_ist_now()} IST\n\n"
         f"{ftr()}"
     )
 
