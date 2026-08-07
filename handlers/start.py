@@ -26,12 +26,12 @@ def _start_keyboard():
             InlineKeyboardButton(f"{strip_tg_emoji(e_memo())} Mass Check", callback_data="start_chk", api_kwargs={"style": "primary"}),
         ],
         [
-            InlineKeyboardButton(f"{strip_tg_emoji(e_gem())} Plans", callback_data="start_plans"),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_gem())} Plans", callback_data="start_plans", api_kwargs={"style": "primary"}),
             InlineKeyboardButton(f"{strip_tg_emoji(e_check_done())} Redeem", callback_data="start_redeem", api_kwargs={"style": "success"}),
         ],
         [
-            InlineKeyboardButton(f"{strip_tg_emoji(e_clipboard())} Status", callback_data="start_status"),
-            InlineKeyboardButton(f"{strip_tg_emoji(e_mobile())} Proxies", callback_data="start_proxy"),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_clipboard())} Status", callback_data="start_status", api_kwargs={"style": "primary"}),
+            InlineKeyboardButton(f"{strip_tg_emoji(e_mobile())} Proxies", callback_data="start_proxy", api_kwargs={"style": "primary"}),
         ],
     ])
 

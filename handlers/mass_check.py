@@ -205,10 +205,10 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                f"$1-5 ({counts['5']})", callback_data=CB_PRICE_5,
+                f"$1-5 ({counts['5']})", callback_data=CB_PRICE_5, api_kwargs={"style": "primary"}
             ),
             InlineKeyboardButton(
-                f"$1-10 ({counts['10']})", callback_data=CB_PRICE_10,
+                f"$1-10 ({counts['10']})", callback_data=CB_PRICE_10, api_kwargs={"style": "primary"}
             ),
         ],
         [

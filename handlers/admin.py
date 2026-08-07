@@ -663,6 +663,7 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton(
                 strip_tg_emoji(f"{e_cross()} Cancel"),
                 callback_data="cancel_deletion",
+                api_kwargs={"style": "primary"}
             ),
         ]])
         await update.message.reply_text(
