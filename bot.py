@@ -86,6 +86,7 @@ from handlers.proxy_handler import (
     cancel_proxy_add,
     proxy_cmd,
     clearproxy_cmd,
+    getproxy_cmd,
     WAITING_FOR_PROXY,
 )
 from handlers.dork_handler import dork_cmd
@@ -276,6 +277,7 @@ def main():
     # Proxy commands
     app.add_handler(CommandHandler("proxy", proxy_cmd))
     app.add_handler(CommandHandler("clearproxy", clearproxy_cmd))
+    app.add_handler(CommandHandler("getproxy", getproxy_cmd))
 
     # Add proxy conversation: /addproxy → wait for text/file → validate
     proxy_conv = ConversationHandler(

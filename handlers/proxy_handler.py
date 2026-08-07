@@ -154,6 +154,26 @@ async def receive_proxies(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if result.get("total_tested", 0) > 0:
         feedback += f"🔍 Tested: {result['total_tested']} proxies on Shopify\n"
 
+    # Append validated live proxies to global proxy.txt pool
+    if result.get("live"):
+        try:
+            p_path = Path("proxy.txt")
+            existing = set()
+            if p_path.exists():
+                with open(p_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            existing.add(line)
+            with open(p_path, "a", encoding="utf-8") as f:
+                for p in result["live"]:
+                    if p not in existing:
+                        f.write(f"{p}\n")
+                        existing.add(p)
+            pm._load_defaults()
+        except Exception as e:
+            logger.warning("Failed to collect proxies to global pool: %s", e)
+
     feedback += f"\n{e_check_done()} Your total proxies: {BOLD(str(total))}\n\n{D}"
 
     await msg.edit_text(feedback, parse_mode=ParseMode.HTML)
@@ -163,6 +183,91 @@ async def receive_proxies(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         result.get("skipped", 0), result.get("total_tested", 0),
     )
     return ConversationHandler.END
+
+
+async def getproxy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle /getproxy [count] — fetch Webshare proxies for PRO/MAX/ULTRA/OWNER users."""
+    user = update.effective_user
+    conn = ctx.bot_data["db"]
+
+    if is_banned(conn, user.id):
+        await update.message.reply_text(format_banned(), parse_mode=ParseMode.HTML)
+        return
+
+    from core.tier_manager import get_user_tier, is_owner
+    tier = get_user_tier(conn, user.id)
+    config = ctx.bot_data.get("config", {})
+    user_is_owner = is_owner(user.id, config)
+
+    # Permission check: OWNER, ULTRA, MAX, PRO allowed
+    if not (user_is_owner or tier in ("ULTRA", "MAX", "PRO")):
+        await update.message.reply_text(
+            format_error("⚠️ Premium tier required! Upgrade to PRO, MAX, or ULTRA to use /getproxy."),
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    # Set tier limit cap (PRO: max 10, MAX/ULTRA/OWNER: max 50)
+    max_cap = 50 if (user_is_owner or tier in ("ULTRA", "MAX")) else 10
+
+    # Parse count arg
+    count = max_cap
+    if ctx.args:
+        try:
+            count = int(ctx.args[0])
+            count = min(max(1, count), max_cap)
+        except ValueError:
+            count = max_cap
+
+    msg = await update.message.reply_text(
+        f"{hdr()}\n\n"
+        f"{e_refresh()} {BOLD(f'Generating {count} Webshare proxies...')}\n"
+        f"⚡ High-speed proxy solver\n"
+        f"👤 Tier: {BOLD(tier)}\n\n{D}",
+        parse_mode=ParseMode.HTML,
+    )
+
+    from core.webshare import get_free_proxies
+    from io import BytesIO
+
+    try:
+        proxies = await get_free_proxies(count, user_id=user.id)
+        if not proxies:
+            await msg.edit_text(
+                format_error("Failed to generate proxies. Please try again later."),
+                parse_mode=ParseMode.HTML,
+            )
+            return
+
+        # Format proxy list text
+        lines = [f"{hdr()}\n\n{frame(f'WEBSHARE PROXIES ({len(proxies)})')}\n"]
+        for p in proxies:
+            lines.append(f"• {CODE(p)}")
+        lines.append(f"\n{D}")
+        text = "\n".join(lines)
+
+        # Build .txt document attachment
+        txt_content = "\n".join(proxies).encode("utf-8")
+        doc = BytesIO(txt_content)
+        doc.name = f"webshare_proxies_{len(proxies)}.txt"
+
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+
+        await ctx.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=doc,
+            caption=text,
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.error("getproxy_cmd error: %s", e)
+        await msg.edit_text(
+            format_error(f"Failed to generate proxies: {str(e)[:80]}"),
+            parse_mode=ParseMode.HTML,
+        )
 
 
 async def cancel_proxy_add(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
