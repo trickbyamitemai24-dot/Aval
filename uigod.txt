@@ -1,66 +1,105 @@
 ================================================================================
-          ⚡️ AURORA CHECKER — GOD-LEVEL UI & UX UPGRADE BLUEPRINT ⚡️
-          Ported & Inspired by autoShopify (520KB Bot Engine Structure)
+      ⚡️ DEEP ARCHITECTURAL BREAKDOWN & UI SPECIFICATION (uigod.txt) ⚡️
+      Complete reverse-engineering of autoShopify (521KB bot.py Engine)
 ================================================================================
 
-1. MATHEMATICAL SANS-SERIF BOLD CONVERTER (bold() Helper)
+1. MATHEMATICAL FONT CONVERTERS (Dynamic Unicode Typography)
 --------------------------------------------------------------------------------
-- Instead of raw standard <b>text</b> tags or basic markdown, autoShopify converts
-  ASCII text dynamically into Unicode Mathematical Sans-Serif Bold characters:
-    Uppercase: A-Z -> 𝗔-𝗭 (U+1D5D4 to U+1D5ED)
-    Lowercase: a-z -> 𝗮-𝘇 (U+1D5EE to U+1D607)
-    Digits:    0-9 -> 𝟬-𝟵 (U+1D7EC to U+1D7F5)
-- Example output:
-    bold("Single Check") -> 𝗦𝗶𝗻𝗴𝗹𝗲 𝗖𝗵𝗲𝗰𝗸
-    bold("Checked by:") -> 𝗖𝗵𝗲𝗰𝗸𝗲𝗱 𝗯𝘆:
+autoShopify utilizes custom character-mapping routines to render non-HTML 
+rich typography that displays natively across all Telegram mobile & desktop clients:
 
-2. TELEGRAM PREMIUM CUSTOM EMOJIS & ICON IDS (E dict)
+  A. MATHEMATICAL SANS-SERIF BOLD (bold() Helper):
+     - Maps ASCII chars A-Z, a-z, 0-9 to U+1D5D4, U+1D5EE, U+1D7EC blocks.
+     - Usage: Card numbers, status labels, BIN values, button text.
+     - Function:
+         bold("Single Check") -> 𝗦𝗶𝗻𝗴𝗹𝗲 𝗖𝗵𝗲𝗰𝗸
+         bold("Order Placed!") -> 𝗢𝗿𝗱𝗲𝗿 𝗣𝗹𝗮𝗰𝗲𝗱!
+
+  B. MATHEMATICAL ITALIC (_to_mi() Helper):
+     - Maps ASCII chars to Mathematical Italic (U+1D434, U+1D44E) with 'h' -> \u210E.
+     - Usage: User profile names (@username), channel notifications, merchant store labels.
+     - Function:
+         _to_mi("@rayzenqx") -> 𝜀𝑟𝑎𝑦𝑧𝑒𝑛𝑞𝑥
+
+2. TELEGRAM PREMIUM CUSTOM EMOJI SYSTEM (pe() & E/R Dictionaries)
 --------------------------------------------------------------------------------
-- Custom emoji IDs attached directly to inline keyboard buttons using:
-    "icon_custom_emoji_id": "<custom_emoji_id>",
-    "style": "primary" | "success" | "danger"
-- Pure text button labels combined with `icon_custom_emoji_id` for crisp, 
-  high-end native Telegram rendering (no raw unicode fallback emojis inside button text).
+- Function: pe(emoji_id: str) -> f'<tg-emoji emoji-id="{emoji_id}">⚡</tg-emoji>'
+- Strict UI Rule: Zero standard Unicode emojis inside inline button labels or message text!
+  All visual icons use Telegram's `<tg-emoji>` custom emoji IDs.
 
-3. COMPACT REAL-TIME MASS CHECK STATUS & INLINE REPLACEMENT
+  Card Brand Custom Emojis (R dictionary):
+    - Visa:       pe("5298970748172385213")
+    - Mastercard: pe("5355269226732995665")
+    - Amex:       pe("4983234121556820510")
+
+  Response State Custom Emojis:
+    - Order Placed / Charged: pe("5226656353744862682") (Gem / Diamond)
+    - Insufficient Funds:     pe("5472250091332993630") (Double Checkmark)
+    - CCN Live / 3DS:         pe("5989800724312101453") (Green Shield)
+    - Declined:               pe("6023909739669229757") (Skull / Cross)
+
+3. COMPACT SINGLE-MESSAGE REAL-TIME MASS CHECK ENGINE (_msh)
 --------------------------------------------------------------------------------
-- Real-time progress updates with per-message async locks (`_MSH_EDIT_LOCKS`) to
-  prevent edit race conditions and FloodWait blocks.
-- Parallel worker execution updates a single shared message rather than sending 
-  multiple output messages.
-- Real-time status indicators:
-    Checking: ⏳ <tg-spoiler>4798510629051356|12|2028|893</tg-spoiler> checking...
-    Charged:  💰 4798 5106 2905 1356 | Shopify $1.00 | CHARGED
-    Approved: 🟢 4798 5106 2905 1356 | Live Card (Insufficient Funds)
-    Declined: 💀 4798 5106 2905 1356 | Declined (Do Not Honor)
+- Instead of spamming multiple edit calls or separate messages, autoShopify maintains
+  a single status message per mass check run.
+- Single Message Layout:
+    ⚡️ 𝗠𝗮𝘀𝘀 𝗖𝗵𝗲𝗰𝗸 [2/5]
 
-4. THREE-PAGE PAGINATED /cmds NAVIGATION
+    🟢 𝗢𝗿𝗱𝗲𝗿 𝗣𝗹𝗮𝗰𝗲𝗱!
+    💳 𝗖𝗖: <tg-spoiler>4798510629051356|12|2028|893</tg-spoiler>
+    🚪 𝗚𝗮𝘁𝗲: 𝗦𝗵𝗼𝗽𝗶𝗳𝘆 $𝟭.𝟬𝟬
+    💵 𝗣𝗿𝗶𝗰𝗲: $𝟭.𝟬𝟬
+    🔍 𝗕𝗜𝗡: 𝗩𝗜𝗦𝗔 | 𝗖𝗥𝗘𝗗𝗜𝗧 | 𝗖𝗟𝗔𝗦𝗦𝗜𝗖 | 𝗖𝗔𝗣𝗜𝗧𝗔𝗟 𝗢𝗡𝗘 | 🇺🇸 𝗨𝗦𝗔
+
+    ⏳ <tg-spoiler>4532018849201948|05|2027|112</tg-spoiler> 𝗰𝗵𝗲𝗰𝗸𝗶𝗻𝗴...
+
+    👤 𝗖𝗵𝗲𝗰𝗸𝗲𝗱 𝗯𝘆: <a href="https://t.me/rayzenqx">@rayzenqx</a>
+
+- Message Concurrency Protection:
+    Per-message locks (`_MSH_EDIT_LOCKS[msg_id] = asyncio.Lock()`) serialize
+    `safe_edit` invocations so worker threads never race or cause Telegram API 402/429 limits.
+
+4. AUTOMATED CHANNEL HIT NOTIFICATIONS (_send_charged_notification)
+--------------------------------------------------------------------------------
+When a card hits `Charged` or `Insufficient Funds`, the bot formats a premium
+framed announcement card and automatically posts it to the community channel (`join_chat_id`):
+
+  ꒰ 💎 ꒱  𝗢𝗥𝗗𝗘𝗥 𝗣𝗟𝗔𝗖𝗘𝗗  ꒰ 💎 ꒱
+
+  👤  𝜀𝑟𝑎𝑦𝑧𝑒𝑛𝑞𝑥
+  📛  𝑅𝑎𝑦𝑧𝑒𝑛
+
+  ━━━━━━━━━━━━━━━━━━━━
+
+  💎  𝗢𝗿𝗱𝗲𝗿 𝗣𝗹𝗮𝗰𝗲𝗱
+  💵  $𝟭.𝟬𝟬
+  🚪  𝗦𝗵𝗼𝗽𝗶𝗳𝘆
+  🚪  𝟯𝗗 𝗕𝘆𝗽𝗮𝘀𝘀𝗲𝗱
+
+5. INTERACTIVE PROXY MANAGEMENT & WEBSHARE BACKGROUND SOLVER UI
+--------------------------------------------------------------------------------
+- `/proxy` command displays active proxy count, type (HTTP/SOCKS5), and latency.
+- Inline "Check Proxy" button triggers batch testing (`testing 10/30...`) and 
+  automatically purges dead proxies from the user's saved list.
+- `/freeproxy` command launches a background solver task (`_freeproxy_bg`), 
+  returning an instant status card ("Solving captcha & registering... takes 30-90s").
+  When complete, it updates the card with "Copy All" and "Add to My List" custom emoji buttons.
+
+6. PAGINATED 3-PAGE `/cmds` NAVIGATION SYSTEM
 --------------------------------------------------------------------------------
 - 3-page paginated `/cmds` menu with inline `Back` and `Next` buttons:
-    Page 1: Core Commands (Shopify / Single / Mass / Adyen / Stripe / Woo)
-    Page 2: Proxy & Tool Commands (Dorking, Webshare, SK Keys, BIN)
-    Page 3: Admin & Key Management Commands (Auth, Ban, Key Gen)
+    Page 1: Core Gateways (Shopify, Stripe, WooCommerce, Adyen)
+    Page 2: Proxy Tools (Dorking, Webshare, SK Key Management, BIN Lookup)
+    Page 3: Admin Commands (Auth, Ban, Key Generation, Stats)
+- Inline button layout:
+    [ Back (icon: help_prev) ]  [ 1/3 (style: danger) ]  [ Next (icon: help_next) ]
 
-5. NATIVE USER PROFILE LINKS & AUTOMATED CHANNEL MONITORS
---------------------------------------------------------------------------------
-- User profile formatting:
-    `<a href="https://t.me/username">@username</a>` or `<a href="tg://user?id=12345">First Last</a>`
-- Instant automated pinning for CHARGED card hits in main chat.
-- Silent forwarding of LIVE / CHARGED cards to private monitor groups and 
-  channel notification channels.
-
-6. PROXY CHECKER & AUTOMATED WEBSHARE PROXY FETCHER UI
---------------------------------------------------------------------------------
-- Interactive `/proxy` dashboard showing live vs dead proxies, with 1-tap "Check Proxy" 
-  and "Clear Proxy" buttons.
-- Real-time batch testing progress updates (`Checking... 10/30`).
-- `/freeproxy` automated NoPeCHA captcha solver UI with background job notification and 
-  "Add to My List" / "Copy All" inline buttons.
-
-7. PROPOSED IMPLEMENTATION PLAN FOR AURORA CHECKER
---------------------------------------------------------------------------------
-[Phase 1]: Integrate `bold()` Mathematical Sans-Serif Bold converter across all templates.
-[Phase 2]: Upgrade `/cmds` and `/start` keyboards with `icon_custom_emoji_id` and 3-page pagination.
-[Phase 3]: Implement compact single-message mass check live updates with async edit locks.
-[Phase 4]: Enable automated charged hit forwarding and pinned message notifications.
+================================================================================
+                      FULL IMPLEMENTATION ROADMAP FOR AURORA
+================================================================================
+1. [core/typography.py]: Add `bold(text)` and `_to_mi(text)` Unicode typography modules.
+2. [templates/messages.py]: Refactor single check, mass check, and help formatting to use
+   `bold()` typography and compact `_format_compact_result` layout.
+3. [handlers/mass_check.py]: Implement `_MSH_EDIT_LOCKS` async message locking.
+4. [handlers/notification.py]: Implement `_send_charged_notification()` channel poster.
 ================================================================================
