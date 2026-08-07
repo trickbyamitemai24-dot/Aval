@@ -1,82 +1,89 @@
 ================================================================================
-  ⚡️ DEEP ARCHITECTURAL BREAKDOWN: /start COMMAND & INLINE KEYBOARDS ⚡️
+  ⚡️ ULTRA GOD DEEP BREAKDOWN: GATEWAY & USER PROFILE INLINE KEYBOARDS ⚡️
   Reverse-Engineered from autoShopify (521KB bot.py Engine)
 ================================================================================
 
-1. DUAL-CHANNEL / GROUP JOIN VERIFICATION FLOW
+1. INTERACTIVE FILE CHECK KEYBOARD & RUNTIME CONTROL (quick_ran & ran_stop)
 --------------------------------------------------------------------------------
-Before presenting the main menu, the bot checks if the user has joined both the
-official Channel (`join_channel_id`) and Group (`join_chat_id`).
+When a user uploads a `.txt` card file in private chat, autoShopify automatically 
+parses the file, extracts Luhn-valid cards (`_DedupeList`), and presents a 1-tap
+start button with native custom emoji icon styling:
 
-- Anti-Spam API Cache (`check_user_joined()`):
-    Positive results (Joined=True) cached for 300 seconds (5 min).
-    Negative results (Joined=False) cached for 30 seconds (allows fast verify).
-    `force=True` parameter used on the "Verify Joined" button to bypass cache instantly.
+  A. Auto-Detected File Card Layout:
+     ✨  𝗖𝗖 𝗙𝗶𝗹𝗲 𝗗𝗲𝘁𝗲𝗰𝘁𝗲𝗱! 🎲
 
-- `JOIN_MSG` Format:
-    ⚠️  𝗔𝗰𝗰𝗲𝘀𝘀 𝗥𝗲𝘀𝘁𝗿𝗶𝗰𝘁𝗲𝗱
+     ⚡️  𝗙𝗶𝗹𝗲: <code>combo_cards.txt</code>
+     ⭐️  𝗧𝗼𝘁𝗮𝗹 𝗖𝗖𝘀: 𝟱,𝟬𝟬𝟬
 
-    ⚡️  𝗬𝗼𝘂 𝗺𝘂𝘀𝘁 𝗷𝗼𝗶𝗻 𝗼𝘂𝗿 𝗰𝗵𝗮𝗻𝗻𝗲𝗹 𝗮𝗻𝗱 𝗴𝗿𝗼𝘂𝗽 𝘁𝗼 𝘂𝘀𝗲 𝘁𝗵𝗶𝘀 𝗯𝗼𝘁.
+     ⚡️ <tg-spoiler>4798510629051356|12|2028|893</tg-spoiler>
+     ⚡️ <tg-spoiler>4532018849201948|05|2027|112</tg-spoiler>
+     ➡️ ... 𝟰,𝟵𝟵𝟴 𝗺𝗼𝗿𝗲
 
-    🔗  𝗧𝗮𝗽 𝘁𝗵𝗲 𝗯𝘂𝘁𝘁𝗼𝗻𝘀 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝗷𝗼𝗶𝗻, 𝘁𝗵𝗲𝗻 𝘁𝗮𝗽 𝗩𝗲𝗿𝗶𝗳𝘆.
+     ➡️  𝗧𝗮𝗽 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝘀𝘁𝗮𝗿𝘁 𝗰𝗵𝗲𝗰𝗸𝗶𝗻𝗴.
 
-- `join_keyboard()` Inline Structure:
-    [ Join Channel (URL, icon: chat, style: primary) ]  [ Join Group (URL, icon: chat2, style: primary) ]
-    [ Verify Joined (cb: verify_join, icon: check, style: success) ]
+  B. File Start Inline Keyboard (`check_btn`):
+     [ Check 5,000 CCs (cb: quick_ran:<msg_id>, icon: 5229077409629752304, style: primary) ]
 
-2. MAIN MENU (/start WELCOME MESSAGE & KEYBOARD)
+  C. Active Session Control Keyboard (`stop_btn`):
+     During parallel execution (up to 100 workers/session), the status card displays:
+     [ Stop Checking (cb: ran_stop:<chat_id>:<user_id>, icon: 6114014038960638990, style: danger) ]
+
+2. USER PROFILE DASHBOARD & PLAN KEYBOARDS (cb_menu_profile)
 --------------------------------------------------------------------------------
-Once verified, `/start` returns the main dashboard:
+The `/start` -> `My Profile` inline callback renders a live user status card with HTML escaping:
 
-- `WELCOME_MSG` Format:
-    💎  𝗪𝗲𝗹𝗰𝗼𝗺𝗲 𝘁𝗼 𝗦𝗵𝗼𝗽𝗶𝗳𝘆 𝗖𝗖 𝗖𝗵𝗲𝗰𝗸𝗲𝗿
+- Profile Layout:
+    👤  𝗨𝘀𝗲𝗿 𝗣𝗿𝗼𝗳𝗶𝗹𝗲
 
-    ⚡️  𝗛𝗶𝗴𝗵-𝘀𝗽𝗲𝗲𝗱 𝗦𝗵𝗼𝗽𝗶𝗳𝘆 𝗴𝗮𝘁𝗲𝘄𝗮𝘆 𝗰𝗵𝗲𝗰𝗸𝗲𝗿
-    ✅  𝗦𝘂𝗽𝗽𝗼𝗿𝘁𝘀 𝗮𝗹𝗹 𝗽𝗿𝗼𝘅𝘆 𝗳𝗼𝗿𝗺𝗮𝘁𝘀
-    🌐  𝗠𝘂𝗹𝘁𝗶-𝘀𝗶𝘁𝗲 𝗿𝗼𝘁𝗮𝘁𝗶𝗼𝗻 𝘄𝗶𝘁𝗵 𝗿𝗲𝘁𝗿𝘆 𝗹𝗼𝗴𝗶𝗰
+    ⭐️  𝗡𝗮𝗺𝗲: <a href="https://t.me/rayzenqx">@rayzenqx</a>
+    ⭐️  𝗨𝘀𝗲𝗿𝗻𝗮𝗺𝗲: @rayzenqx
+    ⭐️  𝗜𝗗: 𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵
 
-    ⭐️  𝗨𝘀𝗲 𝘁𝗵𝗲 𝗺𝗲𝗻𝘂 𝗯𝗲𝗹𝗼𝘄 𝘁𝗼 𝗴𝗲𝘁 𝘀𝘁𝗮𝗿𝘁𝗲𝗱:
+    💎  𝗣𝗹𝗮𝗻: 💎 𝗢𝘄𝗻𝗲𝗿 (𝗟𝗶𝗳𝗲𝘁𝗶𝗺𝗲)
+    ⚡️  𝗣𝗿𝗼𝘅𝘆: ✅ 𝟭𝟬 𝗽𝗿𝗼𝘅𝗶𝗲𝘀
+    🚀  𝗖𝗖 𝗟𝗶𝗺𝗶𝘁 (/𝗿𝗮𝗻): 𝟱𝟬,𝟬𝟬𝟬
 
-- `menu_keyboard()` Inline Structure:
-    [ CMDS (cb: menu_check, icon: 5445353829304387411, style: success) ]  [ Set Proxy (cb: menu_proxy, icon: 5796407074346767851, style: success) ]
-    [ My Profile (cb: menu_profile, icon: 5978784790327856236, style: primary) ]
+- Profile Action Inline Keyboard:
+    [ Back (cb: menu_back, icon: 5269720500468201056, style: primary) ]
 
-3. INLINE CALLBACK CARD NAVIGATION SYSTEM
+3. GATEWAY SPECIFIC COMMAND KEYBOARDS (WooCommerce ST, Stripe $1, Razorpay RZ)
 --------------------------------------------------------------------------------
-Tapping any main menu button smoothly edits the existing message (`safe_edit`) 
-into a dedicated framed interface with a single blue `Back` button:
+Each gateway family has dedicated inline command cards registered in the bot:
 
-  A. `menu_check` (CMDS List):
-     - Displays full command directory grouped into Shopify, WooCommerce (ST), 
-       Stripe $1, Adyen, Razorpay (RZ), Proxy, and Admin sections.
-     - Bottom Keyboard: `back_keyboard()` -> [ Back (cb: menu_back, icon: 5269720500468201056, style: primary) ]
+  A. WooCommerce ST Gateway Menu:
+     ➕ /sadd site — 𝗔𝗱𝗱/𝘁𝗲𝘀𝘁 𝗪𝗼𝗼𝗖𝗼𝗺𝗺𝗲𝗿𝗰𝗲 𝘀𝗶𝘁𝗲
+     ⚡️ /st cc|mm|yy|cvv — 𝗦𝗶𝗻𝗴𝗹𝗲 𝗦𝗧 𝗰𝗵𝗲𝗰𝗸
+     🚀 /mst cc ... — 𝗠𝗮𝘀𝘀 𝗦𝗧 𝗰𝗵𝗲𝗰𝗸 (𝟭𝟬 𝗶𝗻𝗹𝗶𝗻𝗲)
+     🎲 /stxt — 𝗦𝗧 𝗳𝗶𝗹𝗲 𝗰𝗵𝗲𝗰𝗸 (.𝘁𝘅𝘁)
+     🌐 /smysite — 𝗩𝗶𝗲𝘄 𝘀𝗮𝘃𝗲𝗱 𝘀𝗶𝘁𝗲
+     ❌ /srem — 𝗥𝗲𝗺𝗼𝘃𝗲 𝘀𝗮𝘃𝗲𝗱 𝘀𝗶𝘁𝗲
 
-  B. `menu_proxy` (Proxy Dashboard):
-     - Format:
-         🔗  𝗣𝗿𝗼𝘅𝘆 𝗠𝗮𝗻𝗮𝗴𝗲𝗿
-         ➡️  /proxy host:port:user:pass
-         ➡️  /myproxy — 𝗩𝗶𝗲𝘄 𝗰𝘂𝗿𝗿𝗲𝗻𝘁 𝗽𝗿𝗼𝘅𝘆
-         ➡️  /rmproxy — 𝗥𝗲𝗺𝗼𝘃𝗲 𝗽𝗿𝗼𝘅𝘆
-         🎁  /freeproxy — 𝗚𝗲𝘁 𝟭𝟬 𝗳𝗿𝗲𝗲 𝗽𝗿𝗼𝘅𝗶𝗲𝘀 (𝟮𝟰𝗵 𝗰𝗼𝗼𝗹𝗱𝗼𝘄𝗻)
-         🌐  /dork keyword — 𝗕𝗿𝗮𝘃𝗲 𝗦𝗲𝗮𝗿𝗰𝗵 𝗨𝗥𝗟 𝘀𝗰𝗿𝗮𝗽𝗲𝗿
+  B. Stripe $1 Proxy Gateways:
+     ⚡️ /st1 — 𝗦𝘁𝗿𝗶𝗽𝗲 $𝟭 𝘀𝗶𝗻𝗴𝗹𝗲 (𝗽𝗿𝗼𝘅𝘆)
+     🚀 /mst1 — 𝗦𝘁𝗿𝗶𝗽𝗲 $𝟭 𝗺𝗮𝘀𝘀 (𝟮𝟬 𝗖𝗖𝘀)
+     🎲 /st1txt — 𝗦𝘁𝗿𝗶𝗽𝗲 $𝟭 𝗳𝗶𝗹𝗲 𝗰𝗵𝗲𝗰𝗸
 
-  C. `menu_profile` (User Profile Card):
-     - Format:
-         👤  𝗨𝘀𝗲𝗿 𝗣𝗿𝗼𝗳𝗶𝗹𝗲
-         ⭐️  𝗡𝗮𝗺𝗲: <a href="https://t.me/rayzenqx">@rayzenqx</a>
-         ⭐️  𝗨𝘀𝗲𝗿𝗻𝗮𝗺𝗲: @rayzenqx
-         ⭐️  𝗜𝗗: 𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵
+  C. Razorpay RZ Gateways:
+     ➕ /rzsite site — 𝗔𝗱𝗱/𝘁𝗲𝘀𝘁 𝗥𝗭 𝘀𝗶𝘁𝗲
+     ⚡️ /rz cc|mm|yy|cvv — 𝗦𝗶𝗻𝗴𝗹𝗲 𝗥𝗭 𝗰𝗵𝗲𝗰𝗸
+     🚀 /mrz cc ... — 𝗠𝗮𝘀𝘀 𝗥𝗭 𝗰𝗵𝗲𝗰𝗸 (𝟭𝟬 𝗶𝗻𝗹𝗶𝗻𝗲)
+     🎲 /rztxt — 𝗥𝗭 𝗳𝗶𝗹𝗲 𝗰𝗵𝗲𝗰𝗸 (.𝘁𝘅𝘁)
 
-         💎  𝗣𝗹𝗮𝗻: 💎 𝗢𝘄𝗻𝗲𝗿 (𝗟𝗶𝗳𝗲𝘁𝗶𝗺𝗲)
-         ⚡️  𝗣𝗿𝗼𝘅𝘆: ✅ 𝟭𝟬 𝗽𝗿𝗼𝘅𝗶𝗲𝘀
-         🚀  𝗖𝗖 𝗟𝗶𝗺𝗶𝘁 (/𝗿𝗮𝗻): 𝟱𝟬,𝟬𝟬𝟬
-
-4. TECHNICAL ADVANTAGES FOR AURORA CHECKER
+4. WEBSHARE FREE PROXY CLAIM KEYBOARD FLOW
 --------------------------------------------------------------------------------
-1. Single Message In-Place Editing: Zero clutter in chat history; callbacks update
-   the existing message state instead of sending new messages.
-2. Custom Emoji Integration: Native Telegram inline button styles (`primary`/`success`/`danger`)
-   with 64-bit Telegram custom emoji IDs.
-3. Fail-Safe HTML Escaping: `_html.escape()` applied to all dynamic user fields (names,
-   usernames, proxies) to prevent malformed HTML Telegram exceptions.
+When claiming free proxies (`/freeproxy`), the bot updates the waiting card with:
+
+  [ Copy All (cb: freeproxy_copy:<uid>, icon: 5201691993775818138, style: primary) ]
+  [ Add to My List (cb: freeproxy_add:<uid>, icon: 5253652327734192243, style: success) ]
+
+After tapping "Add to My List", the button automatically morphs into:
+  [ Done (cb: noop, icon: 5472250091332993630, style: success) ]
+
+5. COMPLETE UI ENGINE CODE ARCHITECTURE FOR AURORA
+--------------------------------------------------------------------------------
+To achieve 100% feature parity with autoShopify, Aurora Checker will integrate:
+1. `quick_ran` auto-detected file inline start & stop keyboards.
+2. Custom emoji styled `back_keyboard()`, `menu_keyboard()`, and `join_keyboard()`.
+3. In-memory `_RAN_STOP_FLAGS` for real-time mass check cancellation.
+4. Auto-transforming button states (`Add to My List` -> `Done`).
 ================================================================================
