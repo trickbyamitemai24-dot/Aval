@@ -97,39 +97,47 @@ async def single_check_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await checking_msg.edit_text(format_error("No stores available."))
         return
 
-    used = set()
-    pm = ctx.bot_data.get("proxy_manager")
-    
-    # Retry up to 5 stores if there's a store-level error (not a card error)
-    max_store_retries = 5
-    result = None
-    store = None
-    
-    for attempt in range(max_store_retries):
-        store = pick_store(stores, used)
-        if not store:
-            break
-        used.add(store)
-        
-        proxy = pm.get_proxy(user.id) if pm else None
-        result = await shopify_check(card, store, proxy=proxy, timeout=120)
-        
-        # SITE_ERROR = store/infra problem → rotate store and retry
-        if result and result.status != "SITE_ERROR":
-            break  # Got a definitive card response (CHARGED/LIVE/LIVE_3DS/DEAD)
 
-    if result is None or result.status == "SITE_ERROR":
-        from core.checker import CheckResult
-        result = CheckResult("DEAD", "All stores returned errors — try again later", "Shopify Payments", 0.0, store or "unknown", card)
+    async def _run_store_check():
+        used = set()
+        pm = ctx.bot_data.get("proxy_manager")
+        max_store_retries = 5
+        res = None
+        s = None
+        for attempt in range(max_store_retries):
+            s = pick_store(stores, used)
+            if not s:
+                break
+            used.add(s)
+            
+            p = pm.get_proxy(user.id) if pm else None
+            res = await shopify_check(card, s, proxy=p, timeout=120)
+            
+            if res.status != "SITE_ERROR":
+                break
+                
+            await asyncio.sleep(1)
+            
+        if res is None or res.status == "SITE_ERROR":
+            from core.checker import CheckResult
+            res = CheckResult("DEAD", "All stores returned errors — try again later", "Shopify Payments", 0.0, s or "unknown", card)
+            
+        return res
+
+    # Run check + BIN lookup in parallel (saves 2-10s latency)
+    import asyncio
+    bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]
+    
+    check_task = asyncio.create_task(_run_store_check())
+    bin_task = asyncio.create_task(bin_lookup.lookup(card.bin))
+    
+    result, bin_info = await asyncio.gather(check_task, bin_task)
 
     if not result:
         await checking_msg.edit_text(format_error("No working stores available right now."))
         rate_limiter.refund_hourly(user.id)
         return
 
-    # BIN lookup
-    bin_lookup: BinLookup = ctx.bot_data["bin_lookup"]
-    bin_info = await bin_lookup.lookup(card.bin)
     if not isinstance(bin_info, dict):
         bin_info = {"bin": card.bin, "bank": "Unknown", "brand": "Unknown", "type": "Unknown", "level": "Unknown", "country": "Unknown", "flag": ""}
     flag = get_flag(bin_info.get("country", ""))

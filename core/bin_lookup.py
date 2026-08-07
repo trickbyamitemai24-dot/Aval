@@ -13,9 +13,13 @@ logger = logging.getLogger(__name__)
 CACHE_TTL = timedelta(hours=720)
 
 # Free BIN lookup APIs (tried in order)
+import asyncio
+
 DEFAULT_BIN_APIS = [
-    "https://lookup.binlist.net/",           # Free, no key needed
-    "https://data.handyapi.com/bin/",         # Free, no key needed
+    "https://bins.antipublic.cc/bins/",
+    "https://bin.hex-unit.com/",
+    "https://lookup.binlist.net/",
+    "https://data.handyapi.com/bin/",
 ]
 
 
@@ -112,12 +116,29 @@ class BinLookup:
         return info
 
     async def _api_lookup(self, bin_code: str) -> dict:
-        """Call BIN APIs. Falls back to generic info on failure."""
-        # Try configured APIs first
+        """Call BIN APIs concurrently. Returns instantly on first success."""
+        tasks = []
         for api in self.apis:
-            result = await self._try_api(api, bin_code)
-            if result:
-                return result
+            tasks.append(asyncio.create_task(self._try_api(api, bin_code)))
+
+        try:
+            pending = set(tasks)
+            while pending:
+                finished, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+                for t in finished:
+                    try:
+                        result = t.result()
+                        if result:
+                            # We got a successful hit, return it and cancel others
+                            return result
+                    except Exception:
+                        pass
+        finally:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
 
         return self._guess_info(bin_code)
 
@@ -169,8 +190,8 @@ class BinLookup:
             "brand": self._extract_str(data, ("brand", "scheme", "Scheme"), "Unknown").upper(),
             "type": self._extract_str(data, ("type", "Type"), "Unknown").upper(),
             "level": self._extract_str(data, ("level", "Level"), "Unknown").upper(),
-            "country": self._extract_str(data, ("country", "Country"), "Unknown"),
-            "flag": "",
+            "country": self._extract_str(data, ("country", "country_name", "Country"), "Unknown"),
+            "flag": data.get("country_flag", ""),
         }
 
     @staticmethod

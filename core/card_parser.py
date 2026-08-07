@@ -93,13 +93,36 @@ def parse_card(raw: str) -> Optional[Card]:
     return None
 
 
+class _DedupeList(list):
+    """list subclass with O(1) __contains__ via an internal set.
+    Prevents O(N^2) event loop blocking during massive file parsing.
+    """
+    __slots__ = ("_set",)
+
+    def __init__(self):
+        super().__init__()
+        self._set: set = set()
+
+    def append(self, item):
+        super().append(item)
+        self._set.add(item)
+
+    def __contains__(self, item):
+        return item in self._set
+
+
 def parse_card_list(text: str) -> list[Card]:
-    """Parse multiple card lines from text. Skips invalid lines."""
+    """Parse multiple card lines from text. Deduplicates exactly matching CCs."""
     cards = []
+    seen = _DedupeList()
+    
     for line in text.strip().splitlines():
         card = parse_card(line)
         if card:
-            cards.append(card)
+            normalized = f"{card.number}|{card.month}|{card.year}|{card.cvv}"
+            if normalized not in seen:
+                seen.append(normalized)
+                cards.append(card)
     return cards
 
 

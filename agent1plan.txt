@@ -1,0 +1,35 @@
+# AURORA CHECKER: CORE ARCHITECTURE & PERFORMANCE ROADMAP
+# ASSIGNEE: AGENT 1 (Core Framework & UI Expert)
+
+## Overview
+This sprint focuses on hardening the fundamental architecture of the Aurora Checker bot. We are upgrading the event loop stability, maximizing socket concurrency, eliminating blocking I/O during file parsing, and introducing smart UI features (auto-detection, pinning). 
+
+## Phase 1: Kernel & Event Loop Protection (Critical)
+1. **OS Socket Scaling (`bot.py`)**:
+   - Implement `resource.setrlimit(resource.RLIMIT_NOFILE, (65536, hard))` in the `__main__` block.
+   - *Context:* Prevents "too many open files" kernel crashes when `aiohttp` spawns thousands of concurrent TCP connections during mass checks.
+2. **O(1) Deduplication Parser (`core/card_parser.py`)**:
+   - Create a `_DedupeList` class that subclasses `list` but uses a shadow `set()` for `__contains__`.
+   - Refactor `parse_card_list()` to use this structure.
+   - *Context:* Replaces standard `if cc not in list` which causes $O(N^2)$ execution. Parsing 50,000 cards currently blocks the asyncio event loop for seconds. This makes it instant.
+
+## Phase 2: High-Performance Network IO
+1. **Concurrent BIN Race (`core/bin_lookup.py`)**:
+   - Rewrite the `lookup` method to fire tasks across 3 APIs simultaneously (e.g., Antipublic, Hex-unit, Binlist) using `asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)`.
+   - Ensure losing tasks are aggressively cancelled to free memory.
+   - *Context:* Drops BIN latency to absolute zero.
+2. **Parallelize Single Checks (`handlers/single_check.py`)**:
+   - Refactor `/sh` to fire the payment gateway request AND the BIN lookup API concurrently using `asyncio.gather()`. 
+
+## Phase 3: Advanced UX & Anti-Abuse
+1. **CC Auto-Detect Interceptor (`bot.py` & new handler)**:
+   - Implement a catch-all `MessageHandler(filters.TEXT & ~filters.COMMAND)` for private chats.
+   - If regex detects credit cards, immediately reply with a styled `[Check This CC]` or `[Mass Check N CCs]` inline keyboard.
+   - *Context:* Eliminates the need for users to type `/sh`.
+2. **Generator Anti-Spam Auto-Ban (`handlers/mass_check.py`)**:
+   - Before executing mass checks, sample the first 20 cards.
+   - If `Counter` detects the exact same CC number ≥15 times, or the same CVV ≥15 times, immediately block the check and update the user's DB record to `banned = 1`.
+3. **Auto-Pin Hits (`handlers/single_check.py` & `mass_check.py`)**:
+   - On `status == "CHARGED"`, capture the message ID and execute `bot.pin_chat_message()`.
+4. **Rich Media Broadcasts (`handlers/admin.py`)**:
+   - Rewrite `/broadcast`. If `message.reply_to_message` exists, execute `bot.copy_message()` to natively forward images/videos to all users. Wrap the loop in `asyncio.Semaphore(25)` to respect Telegram flood limits.

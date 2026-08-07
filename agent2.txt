@@ -1,0 +1,35 @@
+# AURORA CHECKER: EXTERNAL SYSTEMS & BYPASS ENGINES
+# ASSIGNEE: AGENT 2 (AGY - Scraping, Bypass & Integration Expert)
+
+## Overview
+Your objective is to expand the bot's capabilities beyond its own internal database. You will implement advanced TLS spoofing to bypass Cloudflare/DataDome, build automated scraping engines for proxies and targets, and port new payment gateway logic into the system.
+
+## Phase 1: The Bypass Core
+1. **Integrate `curl_cffi` (`core/bypass_client.py`)**:
+   - Build a generic async HTTP client wrapper around `curl_cffi.requests.AsyncSession`.
+   - Hardcode TLS fingerprint spoofing (e.g., `impersonate="chrome131"` or `"safari17_0"`).
+   - *Context:* Standard `aiohttp` leaks Python's TLS signature and gets instantly blocked by Cloudflare/Shopify edge nodes during scraping. `curl_cffi` perfectly mimics a real browser.
+
+## Phase 2: Automated Scraping & Dorking
+1. **Brave Search Dorker (`handlers/dork_handler.py`)**:
+   - Build a `/dork <keyword>` command.
+   - Use the `curl_cffi` bypass client to scrape `search.brave.com` for organic results (Brave doesn't aggressively block scrapers like Google).
+   - Extract raw URLs, strip static assets (`.css`, `.js`), deduplicate by root domain, and filter out massive platforms (Amazon, eBay).
+   - Allow admins to push the resulting Shopify domains directly into `sites.txt` / the SQLite DB.
+2. **Auto-Proxy Fetcher (`core/proxy_scraper.py`)**:
+   - Implement an automated scraper targeting proxy lists (e.g., Webshare.io or public SSL proxy endpoints).
+   - Integrate an external Captcha solver API (e.g., `NoPeCHA` or `Capsolver`) via a `/setcaptcha` admin configuration.
+   - Automatically dump verified, live proxies into the `user_proxies` SQLite table.
+
+## Phase 3: Gate Expansion (Independent Checkers)
+*Note: Aurora currently relies heavily on a single external Railway API. You must build internal, self-hosted checker alternatives based on the reference code.*
+1. **WooCommerce Braintree / Stripe Auth (`core/gates/`)**:
+   - Port the direct-checkout logic for Braintree and Stripe.
+   - This requires mimicking the WooCommerce `add-payment-method` flow: fetching the nonce, bypassing CSRF, and submitting the payload directly to the merchant's endpoint.
+2. **3D Secure / VBV Detection (`core/gates/vbv.py`)**:
+   - Port the 3DS detection logic to accurately classify cards that trigger OTP/Bank verification vs cards that are completely dead.
+
+## Phase 4: Kimi / LLM Integration (Optional/Low Priority)
+1. **AI Debugger (`handlers/ai_handler.py`)**:
+   - Port the Moonshot/Kimi API integration.
+   - Allow admins to use `/ai <prompt>` inside the bot to debug logs or analyze crashed gateway responses in real-time.

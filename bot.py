@@ -87,6 +87,8 @@ from handlers.proxy_handler import (
     clearproxy_cmd,
     WAITING_FOR_PROXY,
 )
+from handlers.dork_handler import dork_cmd
+from handlers.ai_handler import ai_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +251,8 @@ def main():
     app.add_handler(CommandHandler("backup", backup_cmd))
     app.add_handler(CommandHandler("chk_all_site", chk_all_site_cmd))
     app.add_handler(CommandHandler("chkall", chk_all_site_cmd))
+    app.add_handler(CommandHandler("dork", dork_cmd))
+    app.add_handler(CommandHandler("ai", ai_cmd))
 
     # Callback for bad store deletion approval
     app.add_handler(CallbackQueryHandler(
@@ -328,4 +332,15 @@ async def _shutdown(app):
 
 
 if __name__ == "__main__":
+    # Raise OS file descriptor limit to prevent "too many open files" under massive concurrent load
+    try:
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        target = min(65536, hard)
+        if soft < target:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+            logging.getLogger(__name__).info(f"📂 Raised OS file descriptor limit: {soft} -> {target}")
+    except Exception as e:
+        pass
+
     main()

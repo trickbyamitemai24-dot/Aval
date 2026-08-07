@@ -1,0 +1,347 @@
+class _DedupeList(list):
+def _sanitize(obj, depth: int = 0):
+def _patched_check_response(self, bot, method, status_code: int, content: str):
+def _load_gate_file(filename: str):
+def _load_banned() -> None:
+def _save_banned() -> None:
+def is_banned(user_id: int) -> bool:
+def ban_user(user_id: int) -> None:
+def unban_user(user_id: int) -> None:
+def detect_gen_ccs(cards: list[str]) -> str | None:
+async def _do_gen_ban(message: types.Message, user_id: int, reason: str, filename: str = "") -> None:
+async def guard_gen_filename(message: types.Message, user_id: int) -> bool:
+async def guard_gen_cards(cards: list[str], message: types.Message, user_id: int) -> bool:
+def get_user_semaphore(user_id: int) -> asyncio.Semaphore:
+def check_cooldown(user_id: int) -> float:
+def set_cooldown(user_id: int):
+def pe(emoji_id: str) -> str:
+def brand_emoji(brand: str) -> str:
+def user_link(user_id: int, name: str = "", username: str = "") -> str:
+def bold(text: str) -> str:
+def _gate_msg_display(msg: str, limit: int = 120) -> str:
+def _load_proxies() -> dict:
+def _save_proxies(data: dict):
+def get_user_proxies(user_id: int) -> list:
+def get_user_proxy(user_id: int) -> dict | None:
+def add_user_proxies(user_id: int, new_proxies: list[dict]):
+def del_user_proxy(user_id: int):
+def _load_fp_data() -> dict:
+def _save_fp_data(data: dict) -> None:
+def freeproxy_cooldown_remaining(user_id: int) -> float:
+def freeproxy_set_claimed(user_id: int) -> None:
+def _save_freeproxy_last(user_id: int, proxy_strings: list[str]) -> None:
+def _load_freeproxy_last(user_id: int) -> list[str]:
+def _load_sites() -> list[str]:
+def get_random_site() -> str | None:
+async def safe_edit(msg: types.Message, text: str, **kwargs) -> bool:
+async def global_error_handler(event: types.ErrorEvent):
+class _ThrottleMiddleware(_BaseMiddleware):
+async def check_user_joined(user_id: int, force: bool = False) -> bool:
+def join_keyboard() -> dict:
+def menu_keyboard() -> dict:
+def back_keyboard() -> dict:
+async def _send_approved(text: str) -> None:
+@router.message(CommandStart())
+async def cmd_start(message: types.Message):
+@router.callback_query(F.data == "verify_join")
+async def cb_verify_join(callback: types.CallbackQuery):
+@router.callback_query(F.data == "menu_back")
+async def cb_menu_back(callback: types.CallbackQuery):
+@router.callback_query(F.data == "menu_check")
+async def cb_menu_check(callback: types.CallbackQuery):
+@router.callback_query(F.data == "menu_proxy")
+async def cb_menu_proxy(callback: types.CallbackQuery):
+@router.callback_query(F.data == "menu_bin")
+async def cb_menu_bin(callback: types.CallbackQuery):
+@router.callback_query(F.data == "menu_profile")
+async def cb_menu_profile(callback: types.CallbackQuery):
+@router.message(Command("proxy"))
+async def cmd_proxy(message: types.Message):
+@router.message(Command("myproxy"))
+async def cmd_myproxy(message: types.Message):
+@router.callback_query(F.data.startswith("check_proxy:"))
+async def cb_check_proxy(callback: types.CallbackQuery):
+@router.message(Command("rmproxy"))
+async def cmd_rmproxy(message: types.Message):
+async def _freeproxy_bg(uid: int, wait_msg):
+@router.message(Command("freeproxy"))
+async def cmd_freeproxy(message: types.Message):
+@router.callback_query(F.data.startswith("freeproxy_add:"))
+async def cb_freeproxy_add(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("freeproxy_copy:"))
+async def cb_freeproxy_copy(callback: types.CallbackQuery):
+@router.message(Command("freeproxylist"))
+async def cmd_freeproxylist(message: types.Message):
+async def _dork_bg(uid: int, query: str, proxy_str: str | None, wait_msg):
+@router.message(Command("dork"))
+async def cmd_dork(message: types.Message):
+@router.message(Command("bin"))
+async def cmd_bin(message: types.Message):
+@router.message(Command("sh"))
+async def cmd_sh(message: types.Message):
+def _is_charged_response(response: str, result: dict | None = None) -> bool:
+def _to_mi(text: str) -> str:
+async def _send_charged_notification(
+def _format_status_line(response: str) -> str:
+def _format_compact_result(cc_str: str, result: dict, bin_info: dict) -> str:
+async def _msh_check_single(
+@router.message(Command("msh"))
+async def cmd_msh(message: types.Message):
+def _help_page(page: int) -> tuple[str, dict]:
+@router.message(Command("cmds", "help"))
+async def cmd_help(message: types.Message):
+@router.callback_query(F.data.startswith("helpp:"))
+async def cb_help_page(callback: types.CallbackQuery):
+@router.message(F.text & ~F.text.startswith("/"))
+async def handle_plain_text(message: types.Message):
+@router.callback_query(F.data.startswith("quick_check:"))
+async def cb_quick_check(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("quick_msh:"))
+async def cb_quick_msh(callback: types.CallbackQuery):
+@router.message(F.document & F.chat.type.in_({"private"}))
+async def handle_private_document(message: types.Message):
+@router.callback_query(F.data.startswith("quick_ran:"))
+async def cb_quick_ran(callback: types.CallbackQuery):
+def get_ran_user_semaphore(user_id: int) -> asyncio.Semaphore:
+def release_ran_user_semaphore(user_id: int):
+async def _ran_check_one(
+async def _deliver_ran_hit(
+async def _process_ran_cards(
+@router.callback_query(F.data.startswith("ran_stop:"))
+async def cb_ran_stop(callback: types.CallbackQuery):
+@router.message(Command("ran"))
+async def cmd_ran(message: types.Message):
+@router.message(Command("admin"))
+async def cmd_admin(message: types.Message):
+@router.message(Command("unadmin"))
+async def cmd_unadmin(message: types.Message):
+@router.message(Command("auth"))
+async def cmd_auth(message: types.Message):
+@router.message(Command("unauth"))
+async def cmd_unauth(message: types.Message):
+@router.message(Command("ban"))
+async def cmd_ban(message: types.Message):
+@router.message(Command("unban"))
+async def cmd_unban(message: types.Message):
+@router.message(Command("key"))
+async def cmd_key(message: types.Message):
+@router.message(Command("redeem"))
+async def cmd_redeem(message: types.Message):
+@router.message(Command("nopecha"))
+async def cmd_nopecha(message: types.Message):
+def _ayd_status_line(result: dict) -> str:
+def _ayd_raw_response(result: dict) -> str:
+def _ayd_cc_block(cc: str, result: dict) -> str:
+def _is_checkout_expired(result: dict) -> bool:
+def _is_success(result: dict) -> bool:
+async def _ayd_check_single(
+@router.message(Command("ayd"))
+async def cmd_ayd(message: types.Message):
+@router.callback_query(F.data.startswith("ayd_stop:"))
+async def cb_ayd_stop(callback: types.CallbackQuery):
+def _hit_is_payment_success(result: dict) -> bool:
+def _hit_status_line(result: dict) -> str:
+def _hit_raw_response(result: dict) -> str:
+def _hit_cc_block(cc: str, result: dict) -> str:
+def _hit_is_session_dead(result: dict) -> bool:
+def _hit_is_success(result: dict) -> bool:
+def _hit_is_live(result: dict) -> bool:
+async def _hit_check_single(
+@router.message(Command("hit"))
+async def cmd_hit(message: types.Message):
+@router.callback_query(F.data.startswith("hit_stop:"))
+async def cb_hit_stop(callback: types.CallbackQuery):
+@router.message(Command("broad"))
+async def cmd_broad(message: types.Message):
+async def _filter_check_site(site: str, proxy_data: dict | None) -> dict:
+@router.message(Command("filter"))
+async def cmd_filter(message: types.Message):
+def _load_stsites() -> dict:
+def _save_stsites(data: dict):
+def _normalize_stsite_url(url: str) -> str:
+def _coerce_stsite_list(val) -> list:
+def get_user_stsites(user_id: int) -> list[str]:
+def get_user_stsite(user_id: int) -> str | None:
+def add_user_stsite(user_id: int, url: str) -> str:
+def set_user_stsite(user_id: int, url: str):
+def del_user_stsite(user_id: int, index: int | None = None):
+def _proxy_dict_to_url(proxy_data: dict) -> str | None:
+def _st_status_line(msg: str) -> str:
+def _st_is_working_response(msg: str) -> bool:
+def _parse_sadd_urls(raw: str) -> list[str]:
+@router.message(Command("sadd"))
+async def cmd_sadd(message: types.Message):
+@router.message(Command("srem"))
+async def cmd_srem(message: types.Message):
+@router.message(Command("smysite"))
+async def cmd_smysite(message: types.Message):
+@router.message(Command("st"))
+async def cmd_st(message: types.Message):
+async def _mst_check_single(
+@router.message(Command("mst"))
+async def cmd_mst(message: types.Message):
+async def _process_stxt_cards(
+@router.message(Command("stxt"))
+async def cmd_stxt(message: types.Message):
+@router.callback_query(F.data.startswith("stxt_stop:"))
+async def cb_stxt_stop(callback: types.CallbackQuery):
+async def _stest_single(
+@router.message(Command("stest"))
+async def cmd_stest(message: types.Message):
+def _load_rzsites() -> dict:
+def _save_rzsites(data: dict):
+def _normalize_rzsite_url(url: str) -> str:
+def _coerce_rzsite_list(val) -> list[str]:
+def get_user_rzsites(user_id: int) -> list[str]:
+def get_user_rzsite(user_id: int) -> str | None:
+def add_user_rzsite(user_id: int, url: str) -> str:
+def set_user_rzsite(user_id: int, url: str):
+def del_user_rzsite(user_id: int, index: int | None = None):
+def _rz_price(dbg: dict) -> str:
+def _rz_is_proxy_error(code: str, msg: str) -> bool:
+def _rz_status_line(status: str, msg: str, code: str) -> str:
+def _rz_is_working(status: str, code: str, msg: str) -> bool:
+async def _rz_execute(
+def _rz_run_check(cc_str: str, site_url: str, proxy_list: list, max_retries: int = 2) -> tuple[str, str, str, dict]:
+@router.message(Command("rzsite"))
+async def cmd_rzsite(message: types.Message):
+@router.message(Command("rzrem"))
+async def cmd_rzrem(message: types.Message):
+@router.message(Command("rzmysite"))
+async def cmd_rzmysite(message: types.Message):
+async def _rztest_single(
+@router.message(Command("rztest"))
+async def cmd_rztest(message: types.Message):
+@router.message(Command("rz"))
+async def cmd_rz(message: types.Message):
+async def _mrz_check_single(
+@router.message(Command("mrz"))
+async def cmd_mrz(message: types.Message):
+async def _rztxt_wrap_task(cc_str, site_url, proxy_list, user_id=0):
+async def _process_rztxt_cards(
+@router.message(Command("rztxt"))
+async def cmd_rztxt(message: types.Message):
+@router.callback_query(F.data.startswith("rztxt_stop:"))
+async def cb_rztxt_stop(callback: types.CallbackQuery):
+def _chk_status_line(status: str, msg: str, code: str) -> str:
+def _chk_run_check(cc_str: str, max_retries: int = 4) -> tuple[str, str, str, str]:
+@router.message(Command("chk"))
+async def cmd_chk(message: types.Message):
+async def _mchk_check_single(
+@router.message(Command("mchk"))
+async def cmd_mchk(message: types.Message):
+async def _process_chktxt_cards(
+@router.message(Command("chktxt"))
+async def cmd_chktxt(message: types.Message):
+@router.callback_query(F.data.startswith("chktxt_stop:"))
+async def cb_chktxt_stop(callback: types.CallbackQuery):
+def _vbv_status_line(api_status: str, message: str, code: str) -> str:
+def _vbv_run_check(cc_str: str) -> tuple[str, str, str, dict]:
+def _vbv_result_text(
+@router.message(Command("vbv"))
+async def cmd_vbv(message: types.Message):
+async def _mvbv_check_single(
+@router.message(Command("mvbv"))
+async def cmd_mvbv(message: types.Message):
+def _usd1_normalize(status: str, msg: str, code: str) -> tuple[str, str, str]:
+def _usd1_status_line(status: str, msg: str, code: str) -> str:
+async def _usd1_notify_hit(
+async def _usd1_execute(cc_str: str, proxy_list: list, checker) -> tuple[str, str, str]:
+def _usd1_run_check(cc_str: str, proxy_list: list, checker) -> tuple[str, str, str]:
+def _extract_cc_list(raw_text: str, max_n: int) -> list[str]:
+def _usd1_result_text(
+async def _usd1_single_cmd(message: types.Message, gate_label: str, checker):
+async def _usd1_mass_check_single(
+async def _usd1_mass_cmd(message: types.Message, gate_label: str, checker, max_ccs: int, locks: dict):
+async def _usd1txt_wrap_task(
+async def _process_usd1txt(
+async def _usd1txt_cmd(message: types.Message, gate_label: str, checker, stop_flags: dict, active_users: set, prefix: str):
+@router.message(Command("st1"))
+async def cmd_st1(message: types.Message):
+@router.message(Command("mst1"))
+async def cmd_mst1(message: types.Message):
+@router.message(Command("st1txt"))
+async def cmd_st1txt(message: types.Message):
+@router.callback_query(F.data.startswith("st1txt_stop:"))
+async def cb_st1txt_stop(callback: types.CallbackQuery):
+def _load_skkeys() -> dict:
+def _save_skkeys(data: dict):
+def get_user_skkeys(user_id: int) -> tuple[str, str] | None:
+def set_user_skkeys(user_id: int, sk: str, pk: str):
+def del_user_skkeys(user_id: int):
+def _parse_sk_pk(text: str) -> tuple[str | None, str | None]:
+def _skcvv_mask_key(key: str) -> str:
+def _skcvv_status_line(status: str, msg: str, code: str, amount: str = "") -> str:
+def _skcvv_result_text(
+async def _skcvv_execute(sk: str, pk: str, cc_str: str, user_id: int = 0) -> tuple[str, str, str, str]:
+async def _skcvv_notify_hit(
+def _skcvv_key_is_live(status: str, msg: str, code: str) -> bool:
+async def _skcvv_resolve_pk(sk: str, pk: str | None) -> tuple[str | None, str]:
+@router.message(Command("skadd"))
+async def cmd_skadd(message: types.Message):
+@router.message(Command("mysk"))
+async def cmd_mysk(message: types.Message):
+@router.message(Command("skrem"))
+async def cmd_skrem(message: types.Message):
+@router.message(Command("skcvv"))
+async def cmd_skcvv(message: types.Message):
+async def _mskcvv_check_single(
+@router.message(Command("mskcvv"))
+async def cmd_mskcvv(message: types.Message):
+async def _sktxt_wrap_task(cc_str: str, sk: str, pk: str, user_id: int) -> tuple[str, str, str, str, str]:
+async def _process_sktxt(
+@router.message(Command("sktxt"))
+async def cmd_sktxt(message: types.Message):
+@router.callback_query(F.data.startswith("sktxt_stop:"))
+async def cb_sktxt_stop(callback: types.CallbackQuery):
+def _br_status_line(status: str, msg: str, code: str) -> str:
+def _br_run_check(cc_str: str, proxy_list: list, max_retries: int = 1) -> tuple[str, str, str]:
+@router.message(Command("br"))
+async def cmd_br(message: types.Message):
+async def _mbr_check_single(
+@router.message(Command("mbr"))
+async def cmd_mbr(message: types.Message):
+async def _process_brtxt(
+@router.message(Command("brtxt"))
+async def cmd_brtxt(message: types.Message):
+@router.callback_query(F.data.startswith("brtxt_stop:"))
+async def cb_brtxt_stop(callback: types.CallbackQuery):
+def _b3w_status_line(status: str, msg: str, code: str) -> str:
+def _b3w_run_check(cc_str: str, proxy_list: list, max_retries: int = 1) -> tuple[str, str, str]:
+@router.message(Command("b3"))
+async def cmd_b3(message: types.Message):
+async def _mb3_check_single(
+@router.message(Command("mb3"))
+async def cmd_mb3(message: types.Message):
+async def _process_b3txt(
+@router.message(Command("b3txt"))
+async def cmd_b3txt(message: types.Message):
+@router.callback_query(F.data.startswith("b3txt_stop:"))
+async def cb_b3txt_stop(callback: types.CallbackQuery):
+def _fb_e() -> str:
+def _fb_shift_entities(
+def _fb_text_to_html(text: str, entities: list[types.MessageEntity] | None) -> str:
+def _fb_parse_input(message: types.Message) -> tuple[str | None, str, list[types.MessageEntity]]:
+@router.message(Command("f"))
+async def cmd_feedback(message: types.Message):
+@router.callback_query(F.data.startswith("fb_accept:"))
+async def cb_feedback_accept(callback: types.CallbackQuery):
+@router.callback_query(F.data.startswith("fb_reject:"))
+async def cb_feedback_reject(callback: types.CallbackQuery):
+async def _build_api_message() -> tuple[str, dict]:
+@router.message(Command("api"))
+async def cmd_api(message: types.Message):
+@router.callback_query(F.data.startswith("api_toggle:"))
+async def cb_api_toggle(callback: types.CallbackQuery):
+@router.callback_query(F.data == "api_refresh")
+async def cb_api_refresh(callback: types.CallbackQuery):
+async def _ai_extract_file_text(file_id: str, file_name: str) -> str | None:
+@router.message(Command("ai"))
+async def cmd_ai(message: types.Message):
+@router.message(Command("ban"))
+async def cmd_ban(message: types.Message):
+@router.message(Command("unban"))
+async def cmd_unban(message: types.Message):
+@router.message(Command("banned"))
+async def cmd_banned_list(message: types.Message):
+async def main():
