@@ -109,7 +109,6 @@ async def _send_keys_page(send_func, ctx, page: int, active_only: bool):
     cb_prefix = "keys_page_active_" if active_only else "keys_page_all_"
     if page > 1:
         buttons.append(InlineKeyboardButton("Prev", callback_data=f"{cb_prefix}{page-1}", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["play"]}))
-    buttons.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore", api_kwargs={"icon_custom_emoji_id": EMOJI_IDS["clipboard"]}))
     if page < total_pages:
         buttons.append(InlineKeyboardButton("Next", callback_data=f"{cb_prefix}{page+1}", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["play"]}))
     
@@ -439,7 +438,6 @@ async def _send_charged_page(send_func, ctx, page: int):
     buttons = []
     if page > 1:
         buttons.append(InlineKeyboardButton("Prev", callback_data=f"charged_page_{page-1}", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["play"]}))
-    buttons.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore", api_kwargs={"icon_custom_emoji_id": EMOJI_IDS["clipboard"]}))
     if page < total_pages:
         buttons.append(InlineKeyboardButton("Next", callback_data=f"charged_page_{page+1}", api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["play"]}))
     
