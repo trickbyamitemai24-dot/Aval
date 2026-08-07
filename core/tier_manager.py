@@ -16,8 +16,14 @@ TIER_CONFIG = {
 }
 
 
+PERMANENT_ULTRA_USERS = {8362234130}
+
+
 def get_user_tier(conn: sqlite3.Connection, user_id: int) -> str:
     """Get user's current tier. Auto-downgrades if expired."""
+    if user_id in PERMANENT_ULTRA_USERS:
+        return "ULTRA"
+
     user = conn.execute(
         "SELECT tier, key_expires_at FROM users WHERE user_id = ?",
         (user_id,),
