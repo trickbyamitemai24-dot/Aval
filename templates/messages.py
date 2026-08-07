@@ -424,15 +424,15 @@ def format_plans():
     return (
         f"{hdr()}\n\n"
         f"{frame('𝐂𝐇𝐄𝐂𝐊𝐄𝐑 𝐏𝐋𝐀𝐍𝐒')}\n\n"
-        f"🆓 <b>FREE TIER</b>\n├─ ʟɪᴍɪᴛ: 500 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 10\n└─ ⚡️ <code>Free Trial</code>\n\n"
-        f"🥉 <b>BASIC TIER</b>\n├─ ʟɪᴍɪᴛ: 1,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 20\n├─ 7ᴅ → $2 | 15ᴅ → $5\n└─ 30ᴅ → $7 💎 <b>BEST</b>\n\n"
-        f"🥈 <b>PRO TIER</b>\n├─ ʟɪᴍɪᴛ: 5,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 30\n├─ 7ᴅ → $5 | 15ᴅ → $7\n└─ 30ᴅ → $10 💎 <b>BEST</b>\n\n"
-        f"🥇 <b>MAX TIER</b>\n├─ ʟɪᴍɪᴛ: 10,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 50\n├─ 7ᴅ → $5 | 15ᴅ → $10\n└─ 30ᴅ → $15 💎 <b>BEST</b>\n\n"
-        f"👑 <b>ULTRA TIER</b>\n├─ ʟɪᴍɪᴛ: 50,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 200 (⚡️ ULTRA)\n├─ 7ᴅ → $12 | 15ᴅ → $30\n└─ 30ᴅ → $50 💎 <b>BEST</b>\n\n"
+        f"{e_free()} <b>FREE TIER</b>\n├─ ʟɪᴍɪᴛ: 500 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 10\n└─ {e_lightning()} <code>Free Trial</code>\n\n"
+        f"{e_bronze()} <b>BASIC TIER</b>\n├─ ʟɪᴍɪᴛ: 1,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 20\n├─ 7ᴅ → $2 | 15ᴅ → $5\n└─ 30ᴅ → $7 {e_gem()} <b>BEST</b>\n\n"
+        f"{e_silver()} <b>PRO TIER</b>\n├─ ʟɪᴍɪᴛ: 5,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 30\n├─ 7ᴅ → $5 | 15ᴅ → $7\n└─ 30ᴅ → $10 {e_gem()} <b>BEST</b>\n\n"
+        f"{e_gold()} <b>MAX TIER</b>\n├─ ʟɪᴍɪᴛ: 10,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 50\n├─ 7ᴅ → $5 | 15ᴅ → $10\n└─ 30ᴅ → $15 {e_gem()} <b>BEST</b>\n\n"
+        f"{e_crown()} <b>ULTRA TIER</b>\n├─ ʟɪᴍɪᴛ: 50,000 ᴄᴀʀᴅs/ʀᴜɴ\n├─ ᴡᴏʀᴋᴇʀs: 200 ({e_lightning()} ULTRA)\n├─ 7ᴅ → $12 | 15ᴅ → $30\n└─ 30ᴅ → $50 {e_gem()} <b>BEST</b>\n\n"
         f"{DS}\n"
-        f"✔️ ᴜɴʟɪᴍɪᴛᴇᴅ ʀᴜɴs ᴅᴜʀɪɴɢ ᴀᴄᴛɪᴠᴇ ᴘʟᴀɴ\n"
-        f"⚡️ 200x ᴄᴏɴᴄᴜʀʀᴇɴᴛ sᴘᴇᴇᴅ\n\n"
-        f"📩 <b>Buy / Contact</b>: @rayzenqx 💙\n\n"
+        f"{e_check()} ᴜɴʟɪᴍɪᴛᴇᴅ ʀᴜɴs ᴅᴜʀɪɴɢ ᴀᴄᴛɪᴠᴇ ᴘʟᴀɴ\n"
+        f"{e_lightning()} 200x ᴄᴏɴᴄᴜʀʀᴇɴᴛ sᴘᴇᴇᴅ\n\n"
+        f"{e_mailbox()} <b>Buy / Contact</b>: @rayzenqx {e_heart_blue()}\n\n"
         f"{ftr()}"
     )
 
