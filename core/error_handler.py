@@ -237,7 +237,11 @@ def get_user_message(exc: Exception) -> str:
     if "not found" in msg:
         return format_error("Not found.")
 
-    return format_error("Something went wrong. Try again.")
+    # Show exact real error message details instead of generic fallback
+    clean_err = str(exc).strip()
+    if clean_err:
+        return format_error(f"{type(exc).__name__}: {clean_err[:120]}")
+    return format_error(f"Error ({type(exc).__name__}). Try again.")
 
 
 # ═════════════════════════════════════════════════════════════════════════

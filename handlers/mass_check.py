@@ -272,9 +272,7 @@ async def process_card_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE, 
         ],
     ])
 
-    await update.message.reply_text(
-        text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
-    )
+    await reply_rich(update.message, text, reply_markup=keyboard)
     return ConversationHandler.END
 
 
