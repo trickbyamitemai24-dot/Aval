@@ -189,14 +189,22 @@ def format_single_check(status, card, gateway, response, price, bin_info, flag="
 # BIN
 # ═════════════════════════════════════════════════════════════════════════
 def format_bin(bin_info, flag=""):
+    import html
+    bank_esc = html.escape(str(bin_info.get('bank','?')))
+    brand_esc = html.escape(str(bin_info.get('brand','?')))
+    type_esc = html.escape(str(bin_info.get('type','?')))
+    level_esc = html.escape(str(bin_info.get('level','?')))
+    country_esc = html.escape(str(bin_info.get('country','?')))
+    bin_esc = html.escape(str(bin_info.get('bin','?')))
+
     return (
         f"{hdr()}\n\n{frame('ʙɪɴ ʟᴏᴏᴋᴜᴘ')}\n\n"
-        f"{e_card()}      {B('ʙɪɴ')}     : {bin_info.get('bin','?')}\n"
-        f"{e_bank()}      {B('ʙᴀɴᴋ')}   : {bin_info.get('bank','?')}\n"
-        f"{e_shield()}      {B('ʙʀᴀɴᴅ')}  : {bin_info.get('brand','?')}\n"
-        f"{e_chart()}     {B('ᴛʏᴘᴇ')}   : {bin_info.get('type','?')}\n"
-        f"{e_star()} {B('ʟᴇᴠᴇʟ')}  : {bin_info.get('level','?')}\n"
-        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {bin_info.get('country','?')} {flag}\n\n"
+        f"{e_card()}      {B('ʙɪɴ')}     : {bin_esc}\n"
+        f"{e_bank()}      {B('ʙᴀɴᴋ')}   : {bank_esc}\n"
+        f"{e_shield()}      {B('ʙʀᴀɴᴅ')}  : {brand_esc}\n"
+        f"{e_chart()}     {B('ᴛʏᴘᴇ')}   : {type_esc}\n"
+        f"{e_star()} {B('ʟᴇᴠᴇʟ')}  : {level_esc}\n"
+        f"{e_earth()} {B('ᴄᴏᴜɴᴛʀʏ')} : {country_esc} {flag}\n\n"
         f"{ftr()}"
     )
 
