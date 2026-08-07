@@ -378,8 +378,6 @@ def format_mass_check_progress(price_range, total, checked, duration, charged, l
 # MASS CHECK COMPLETE
 # ═════════════════════════════════════════════════════════════════════════
 def format_mass_check_complete(price_range, total, duration, charged, live, dead):
-    success = charged + live
-    rate = int((success / total * 100)) if total > 0 else 0
     return (
         f"{hdr()}\n\n{frame('ᴄʜᴇᴄᴋ ᴄᴏᴍᴘʟᴇᴛᴇ')}\n\n"
         f"{e_cart()}   {B('ɢᴀᴛᴇᴡᴀʏ')}    : #Mass_Shopify\n"
@@ -387,13 +385,80 @@ def format_mass_check_complete(price_range, total, duration, charged, live, dead
         f"{e_card()}   {B('ᴛᴏᴛᴀʟ')}      : {total}\n"
         f"{e_timer()} {B('ᴅᴜʀᴀᴛɪᴏɴ')}    : {duration}\n\n"
         f"{DS}\n"
-        f"{e_money_bag()}   {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}  {ratio(charged, total)}\n"
-        f"{e_green()}   {B('ʟɪᴠᴇ')}    : {live}  {ratio(live, total)}\n"
-        f"{e_skull()}   {B('ᴅᴇᴀᴅ')}    : {dead}  {ratio(dead, total)}\n\n"
-        f"{DS}\n"
-        f"{e_chart_up()}  {B('sᴜᴄᴄᴇss')}  : {rate}%  {ratio(success, total, 12)}\n\n"
+        f"{e_money_bag()}   {B('ᴄʜᴀʀɢᴇᴅ')} : {charged}\n"
+        f"{e_green()}   {B('ʟɪᴠᴇ')}    : {live}\n"
+        f"{e_skull()}   {B('ᴅᴇᴀᴅ')}    : {dead}\n\n"
         f"{ftr()}"
     )
+
+
+def format_mass_check_summary_card(result) -> str:
+    """Format final mass check summary with custom emojis and hit list."""
+    total = result.total
+    checked = result.checked if getattr(result, 'checked', 0) > 0 else (len(result.charged) + len(result.live) + len(result.dead))
+    charged_count = len(result.charged)
+    live_count = len(result.live)
+    dead_count = len(result.dead)
+
+    hits_lines = []
+    for card, res in result.charged:
+        hits_lines.append(f'<tg-emoji emoji-id="5364040533498932357">💎</tg-emoji> <code>{card.raw}</code>')
+    for card, res in result.live:
+        hits_lines.append(f'<tg-emoji emoji-id="6181540309357305513">🔥</tg-emoji> <code>{card.raw}</code>')
+
+    hits_text = "\n".join(hits_lines) if hits_lines else "<i>No hits found</i>"
+
+    return (
+        f'<tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji> <b>𝐄𝐕𝐄𝐋𝐘𝐍 𝐂𝐇𝐄𝐂𝐊𝐄𝐑</b> <tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji>\n\n'
+        f'<tg-emoji emoji-id="5445388803223091254">⚡</tg-emoji> <b>𝐑𝐞𝐬𝐮𝐥𝐭𝐬</b>\n'
+        f'<tg-emoji emoji-id="5447453226498552490">💳</tg-emoji> <b>Total:</b> {total}\n'
+        f'<tg-emoji emoji-id="5231200819986047254">📊</tg-emoji> <b>Checked:</b> {checked}\n'
+        f'<tg-emoji emoji-id="5764979527331615949">🤍</tg-emoji> <b>Charged:</b> {charged_count}\n'
+        f'<tg-emoji emoji-id="5303438381743618017">😀</tg-emoji> <b>Live:</b> {live_count}\n'
+        f'<tg-emoji emoji-id="5447381715293074599">⚠️</tg-emoji> <b>Dead:</b> {dead_count}\n\n'
+        f'<tg-emoji emoji-id="5447319442562251569">🛒</tg-emoji> <b>Gateway:</b> Shopify Payments\n\n'
+        f'<tg-emoji emoji-id="5974235702701853774">🎯</tg-emoji> <b>𝐇𝐢𝐭𝐬</b>\n'
+        f'{hits_text}\n\n'
+        f'━━━━━━━━━━━━━━━━━━━━━━\n'
+        f'<tg-emoji emoji-id="6057466460886799210">🤖</tg-emoji> <i>Bot By: </i><a href="https://t.me/rayzenqx">Pro Noob</a>'
+    )
+
+
+def generate_mass_check_txt_file(result) -> bytes:
+    """Generate formatted .txt result file containing all CC details."""
+    lines = []
+    lines.append("====================================")
+    lines.append("CC CHECKER RESULTS")
+    lines.append("Format: CC | Gateway | Price | Message")
+    lines.append("======================================================================\n")
+
+    lines.append(f"💎 CHARGED ({len(result.charged)}):")
+    lines.append("----------------------------------------------------------------------")
+    for card, res in result.charged:
+        gw = getattr(res, 'gateway', 'Shopify Payments') or "Shopify Payments"
+        price = getattr(res, 'price', 0.0) or 0.0
+        msg = getattr(res, 'message', 'ORDER_PLACED') or "ORDER_PLACED"
+        lines.append(f"{card.raw} | {gw} | {price} | {msg}")
+    lines.append("")
+
+    lines.append(f"🔥 LIVE ({len(result.live)}):")
+    lines.append("----------------------------------------------------------------------")
+    for card, res in result.live:
+        gw = getattr(res, 'gateway', 'Shopify Payments') or "Shopify Payments"
+        price = getattr(res, 'price', 0.0) or 0.0
+        msg = getattr(res, 'message', 'LIVE') or "LIVE"
+        lines.append(f"{card.raw} | {gw} | {price} | {msg}")
+    lines.append("")
+
+    lines.append(f"❌ DEAD ({len(result.dead)}):")
+    lines.append("----------------------------------------------------------------------")
+    for card, res in result.dead:
+        gw = getattr(res, 'gateway', 'Shopify Payments') or "Shopify Payments"
+        price = getattr(res, 'price', 0.0) or 0.0
+        msg = getattr(res, 'message', 'CARD_DECLINED') or "CARD_DECLINED"
+        lines.append(f"{card.raw} | {gw} | {price} | {msg}")
+
+    return "\n".join(lines).encode("utf-8")
 
 
 # ═════════════════════════════════════════════════════════════════════════

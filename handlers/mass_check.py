@@ -475,31 +475,29 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             health_cache=health_cache,
         )
 
-        # Send final summary
-        final_text = format_mass_check_complete(
-            price_range=range_label,
-            total=result.total,
-            duration=format_duration(result.duration),
-            charged=len(result.charged),
-            live=len(result.live),
-            dead=len(result.dead),
-        )
-        await ctx.bot.send_message(
-            chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML,
-        )
+        # Send final summary card + attached .txt results file
+        from templates.messages import format_mass_check_summary_card, generate_mass_check_txt_file
+        from io import BytesIO
 
-        # Send charged cards list if any
-        if result.charged:
-            charged_text = format_charged_cards_list(result.charged)
-            c_msg = await _send_long(ctx.bot, chat_id, charged_text)
-            if c_msg:
-                try: await c_msg.pin(disable_notification=True)
-                except: pass
+        final_summary = format_mass_check_summary_card(result)
+        txt_bytes = generate_mass_check_txt_file(result)
+        doc = BytesIO(txt_bytes)
+        doc.name = "mass_check_results.txt"
 
-        # Send live cards list if any
-        if result.live:
-            live_text = format_live_cards_list(result.live)
-            await _send_long(ctx.bot, chat_id, live_text)
+        try:
+            await ctx.bot.send_document(
+                chat_id=chat_id,
+                document=doc,
+                caption=final_summary,
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception as e:
+            logger.warning("Failed to send mass check document, sending message fallback: %s", e)
+            await ctx.bot.send_message(
+                chat_id=chat_id,
+                text=final_summary,
+                parse_mode=ParseMode.HTML,
+            )
 
         # Update user stats (batched)
         from core.database import batch_increment_stats
