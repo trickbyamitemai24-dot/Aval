@@ -26,6 +26,7 @@ from templates.emojis import (
     e_clipboard, e_mailbox, e_warning, e_smile, e_calendar, e_card,
     strip_tg_emoji, EMOJI_IDS
 )
+from templates.rich_fallback import reply_rich, edit_rich
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,8 @@ def owner_only(func):
 async def keys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /keys [active] — list batch keys from key system v2 with pagination."""
     active_only = len(ctx.args) > 0 and ctx.args[0].lower() == "active"
-    await _send_keys_page(update.message.reply_text, ctx, page=1, active_only=active_only)
+    send = lambda text, **kw: reply_rich(update.message, text, reply_markup=kw.get("reply_markup"))
+    await _send_keys_page(send, ctx, page=1, active_only=active_only)
 
 async def _send_keys_page(send_func, ctx, page: int, active_only: bool):
     conn = ctx.bot_data["db"]
@@ -430,7 +432,8 @@ async def settier_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def charged_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /charged — show recent charged cards with pagination."""
-    await _send_charged_page(update.message.reply_text, ctx, page=1)
+    send = lambda text, **kw: reply_rich(update.message, text, reply_markup=kw.get("reply_markup"))
+    await _send_charged_page(send, ctx, page=1)
 
 async def _send_charged_page(send_func, ctx, page: int):
     conn = ctx.bot_data["db"]
@@ -489,13 +492,16 @@ async def admin_pagination_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
     try:
         if data.startswith("keys_page_active_"):
             page = int(data.replace("keys_page_active_", ""))
-            await _send_keys_page(query.edit_message_text, ctx, page, active_only=True)
+            send = lambda text, **kw: edit_rich(query, text, reply_markup=kw.get("reply_markup"))
+            await _send_keys_page(send, ctx, page, active_only=True)
         elif data.startswith("keys_page_all_"):
             page = int(data.replace("keys_page_all_", ""))
-            await _send_keys_page(query.edit_message_text, ctx, page, active_only=False)
+            send = lambda text, **kw: edit_rich(query, text, reply_markup=kw.get("reply_markup"))
+            await _send_keys_page(send, ctx, page, active_only=False)
         elif data.startswith("charged_page_"):
             page = int(data.replace("charged_page_", ""))
-            await _send_charged_page(query.edit_message_text, ctx, page)
+            send = lambda text, **kw: edit_rich(query, text, reply_markup=kw.get("reply_markup"))
+            await _send_charged_page(send, ctx, page)
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning("Pagination error: %s", e)
@@ -697,9 +703,7 @@ async def chk_all_site_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 api_kwargs={"style": "primary", "icon_custom_emoji_id": EMOJI_IDS["cross"]}
             ),
         ]])
-        await update.message.reply_text(
-            result_text, parse_mode=ParseMode.HTML, reply_markup=keyboard,
-        )
+        await reply_rich(update.message, result_text, reply_markup=keyboard)
     else:
         await update.message.reply_text(result_text, parse_mode=ParseMode.HTML)
 

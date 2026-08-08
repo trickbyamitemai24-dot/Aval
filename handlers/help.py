@@ -4,6 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from templates.messages import format_help_page
+from templates.rich_fallback import reply_rich, edit_rich
 
 def get_help_keyboard(page: int):
     buttons = []
@@ -16,11 +17,7 @@ def get_help_keyboard(page: int):
 
 async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
-    await update.message.reply_text(
-        format_help_page(1), 
-        parse_mode=ParseMode.HTML,
-        reply_markup=get_help_keyboard(1)
-    )
+    await reply_rich(update.message, format_help_page(1), reply_markup=get_help_keyboard(1))
 
 async def help_pagination_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle help pagination buttons."""
@@ -28,14 +25,10 @@ async def help_pagination_callback(update: Update, ctx: ContextTypes.DEFAULT_TYP
     if query.data == "ignore":
         await query.answer()
         return
-        
+
     await query.answer()
     try:
         page = int(query.data.replace("help_page_", ""))
-        await query.edit_message_text(
-            format_help_page(page),
-            parse_mode=ParseMode.HTML,
-            reply_markup=get_help_keyboard(page)
-        )
+        await edit_rich(query, format_help_page(page), reply_markup=get_help_keyboard(page))
     except Exception as e:
         pass

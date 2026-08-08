@@ -6,6 +6,7 @@ from core.card_parser import Card, parse_card_list, _DedupeList
 from core.database import is_banned
 from templates.messages import format_error, hdr, ftr, frame
 from templates.emojis import e_sparkles, e_lightning, e_card, e_memo, strip_tg_emoji
+from templates.rich_fallback import reply_rich, edit_rich
 
 CC_PATTERN = re.compile(r'\b(4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|2(?:22[1-9]|2[3-9][0-9]|[3-6][0-9]{2}|7[0-1][0-9]|720)[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})[\s/\|:]+((?:0[1-9]|1[0-2]))[\s/\|:]+((?:20)?\d{2})[\s/\|:]+(\d{3,4})\b')
 
@@ -49,12 +50,12 @@ async def handle_raw_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 api_kwargs={"style": "primary"}
             )
         ]])
-        await update.message.reply_text(
+        await reply_rich(
+            update.message,
             f"{hdr()}\n\n{e_sparkles()} <b>CC Detected!</b>\n\n"
             f"{e_lightning()} <tg-spoiler>{cc_str}</tg-spoiler>\n\n"
             f"Tap below to check it immediately.\n\n{ftr()}",
-            parse_mode=ParseMode.HTML,
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
     else:
         # Avoid callback_data limit
@@ -74,12 +75,12 @@ async def handle_raw_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         preview = "\n".join(f"{e_lightning()} <tg-spoiler>{c.raw}</tg-spoiler>" for c in ctx.user_data["mass_check_cards"][:5])
         extra = f"\n... {count - 5} more" if count > 5 else ""
         
-        await update.message.reply_text(
+        await reply_rich(
+            update.message,
             f"{hdr()}\n\n{e_sparkles()} <b>Multiple CCs Detected!</b>\n\n"
             f"<b>Total:</b> {count}\n\n{preview}{extra}\n\n"
             f"Tap below to start a mass check.\n\n{ftr()}",
-            parse_mode=ParseMode.HTML,
-            reply_markup=keyboard
+            reply_markup=keyboard,
         )
 
 async def cb_quick_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -167,5 +168,5 @@ async def cb_quick_msh(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ],
     ])
     
-    await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+    await edit_rich(query, text, reply_markup=keyboard)
 

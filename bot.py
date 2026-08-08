@@ -228,7 +228,7 @@ def main():
     # Inline button callback for price range selection
     app.add_handler(CallbackQueryHandler(
         mass_check_callback,
-        pattern=r"^mc_(price_5|price_10|price_all|price_hq|price_v40|price_sureship|price_all_combined|cancel)$",
+        pattern=r"^mc_(price_5|price_10|price_all|price_hq|price_v40|price_sureship|price_all_combined|cancel|stop)$",
     ))
 
     # Resume interrupted mass check

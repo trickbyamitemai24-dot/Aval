@@ -176,6 +176,7 @@ async def mass_check(
     state_conn: sqlite3.Connection = None,
     state_id: int = None,
     health_cache: StoreHealthCache = None,
+    stop_event: asyncio.Event = None,
 ) -> MassCheckResult:
     """Run mass check on a list of cards.
 
@@ -190,6 +191,8 @@ async def mass_check(
         state_conn: Optional SQLite conn for state persistence
         state_id: Optional state row ID for progress updates
         health_cache: Optional store health cache for scoring
+        stop_event: Optional asyncio.Event — when set, stops starting new
+            checks and returns partial results
     Returns:
         MassCheckResult with charged/live/dead lists
     """
@@ -293,6 +296,8 @@ async def mass_check(
 
     async def check_one(card: Card):
         nonlocal last_progress, last_state_save
+        if stop_event is not None and stop_event.is_set():
+            return
         await adaptive_sem.acquire()
         store = None
         try:
@@ -494,6 +499,9 @@ async def mass_check(
     # Process cards in batches to avoid creating 50k+ tasks at once
     _BATCH_SIZE = 200
     for batch_start in range(0, len(cards), _BATCH_SIZE):
+        if stop_event is not None and stop_event.is_set():
+            logger.info("Mass check stopped by user at %d/%d cards", result.checked, total)
+            break
         batch = cards[batch_start:batch_start + _BATCH_SIZE]
         tasks = [asyncio.create_task(check_one(c)) for c in batch]
         await asyncio.gather(*tasks, return_exceptions=True)

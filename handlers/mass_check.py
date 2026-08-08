@@ -83,6 +83,7 @@ CB_PRICE_V40 = "mc_price_v40"
 CB_PRICE_SURESHIP = "mc_price_sureship"
 CB_PRICE_ALL_COMBINED = "mc_price_all_combined"
 CB_CANCEL = "mc_cancel"
+CB_STOP = "mc_stop"
 
 from core.tier_manager import TIER_CONFIG
 
@@ -327,16 +328,28 @@ async def cancel_mass_check(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Handle inline button callback — start mass check with selected price range."""
     query = update.callback_query
-    await query.answer()
 
     user = query.from_user
+    data = query.data
+
+    # Stop button — answer with feedback, no further processing
+    if data == CB_STOP:
+        stop_events = ctx.bot_data.setdefault("mass_stop_events", {})
+        ev = stop_events.get(user.id)
+        if ev is not None and not ev.is_set():
+            ev.set()
+            await query.answer("🛑 Stopping... in-flight cards will finish.", show_alert=True)
+        else:
+            await query.answer("No active mass check.")
+        return
+
+    await query.answer()
+
     conn = ctx.bot_data["db"]
 
     if is_banned(conn, user.id):
         await query.edit_message_text(format_banned(), parse_mode=ParseMode.HTML)
         return
-
-    data = query.data
 
     if data == CB_CANCEL:
         cards = ctx.user_data.pop("mass_check_cards", None)
@@ -391,7 +404,7 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data.pop("mass_check_tier", None)
     ctx.user_data.pop("mass_check_limit", None)
 
-    # Send initial progress message
+    # Send initial progress message (with Stop button)
     progress_text = format_mass_check_progress(
         price_range=range_label,
         total=len(cards),
@@ -401,7 +414,18 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         live=0,
         dead=0,
     )
-    await query.edit_message_text(progress_text, parse_mode=ParseMode.HTML)
+    stop_keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "Stop", callback_data=CB_STOP,
+            api_kwargs={"style": "danger", "icon_custom_emoji_id": EMOJI_IDS["stop"]},
+        ),
+    ]])
+    try:
+        await query.edit_message_text(progress_text, parse_mode=ParseMode.HTML, reply_markup=stop_keyboard)
+    except Exception:
+        from templates.rich_fallback import _strip_markup
+        await query.edit_message_text(progress_text, parse_mode=ParseMode.HTML,
+                                      reply_markup=_strip_markup(stop_keyboard))
     progress_msg = query.message
 
     # Progress callback
@@ -424,6 +448,7 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 message_id=message_id,
                 text=text,
                 parse_mode=ParseMode.HTML,
+                reply_markup=stop_keyboard,
             )
         except Exception as e:
             logger.debug("Progress edit error: %s", e)
@@ -461,6 +486,12 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ).fetchone()
     state_id = state_row["id"] if state_row else None
 
+    # Register stop event so the Stop button can halt this run
+    import asyncio as _asyncio
+    stop_event = _asyncio.Event()
+    stop_events = ctx.bot_data.setdefault("mass_stop_events", {})
+    stop_events[user.id] = stop_event
+
     try:
         result = await mass_check(
             cards=cards,
@@ -473,6 +504,7 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             state_conn=conn,
             state_id=state_id,
             health_cache=health_cache,
+            stop_event=stop_event,
         )
 
         # Send final summary card + attached .txt results file
@@ -480,6 +512,8 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         from io import BytesIO
 
         final_summary = format_mass_check_summary_card(result)
+        if stop_event.is_set():
+            final_summary = f"🛑 <b>Stopped by user</b> — partial results ({result.checked}/{result.total})\n\n" + final_summary
         txt_bytes = generate_mass_check_txt_file(result)
         doc = BytesIO(txt_bytes)
         doc.name = "mass_check_results.txt"
@@ -550,6 +584,14 @@ async def mass_check_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             complete_state(conn, state_id)
         # Clean up rate limiter
         rate_limiter.end_mass(user.id)
+        # Clean up stop event + remove Stop button
+        stop_events.pop(user.id, None)
+        try:
+            await ctx.bot.edit_message_reply_markup(
+                chat_id=chat_id, message_id=message_id, reply_markup=None,
+            )
+        except Exception:
+            pass
 
     logger.info(
         "Mass check complete: user=%d total=%d charged=%d live=%d dead=%d duration=%.1fs",
@@ -605,12 +647,18 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Clear old state
     clear_state(conn, state["id"])
 
-    # Send initial progress
+    # Send initial progress (with Stop button)
     progress_text = format_mass_check_progress(
         price_range=range_label, total=len(cards), checked=0,
         duration="0m 0s", charged=0, live=0, dead=0,
     )
-    msg = await update.message.reply_text(progress_text, parse_mode=ParseMode.HTML)
+    stop_keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            "Stop", callback_data=CB_STOP,
+            api_kwargs={"style": "danger", "icon_custom_emoji_id": EMOJI_IDS["stop"]},
+        ),
+    ]])
+    msg = await reply_rich(update.message, progress_text, reply_markup=stop_keyboard)
 
     chat_id = msg.chat_id
     message_id = msg.message_id
@@ -626,6 +674,7 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await ctx.bot.edit_message_text(
                 chat_id=chat_id, message_id=message_id,
                 text=text, parse_mode=ParseMode.HTML,
+                reply_markup=stop_keyboard,
             )
         except Exception as e:
             logger.debug("Resume progress edit error: %s", e)
@@ -645,12 +694,17 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return pm.get_proxy(user.id)
         return None
 
+    import asyncio as _asyncio
+    stop_event = _asyncio.Event()
+    stop_events = ctx.bot_data.setdefault("mass_stop_events", {})
+    stop_events[user.id] = stop_event
+
     try:
         result = await mass_check(
             cards=cards, stores=stores, workers=workers, timeout=120,
             progress_callback=progress_cb, progress_interval=3.0,
             proxy_provider=proxy_provider, state_conn=conn, state_id=state_id,
-            health_cache=health_cache,
+            health_cache=health_cache, stop_event=stop_event,
         )
 
         # Send final summary
@@ -659,6 +713,8 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             duration=format_duration(result.duration),
             charged=len(result.charged), live=len(result.live), dead=len(result.dead),
         )
+        if stop_event.is_set():
+            final_text = f"🛑 <b>Stopped by user</b> — partial results ({result.checked}/{result.total})\n\n" + final_text
         await ctx.bot.send_message(chat_id=chat_id, text=final_text, parse_mode=ParseMode.HTML)
 
         if result.charged:
@@ -685,3 +741,10 @@ async def resume_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if state_id:
             complete_state(conn, state_id)
         rate_limiter.end_mass(user.id)
+        stop_events.pop(user.id, None)
+        try:
+            await ctx.bot.edit_message_reply_markup(
+                chat_id=chat_id, message_id=message_id, reply_markup=None,
+            )
+        except Exception:
+            pass
